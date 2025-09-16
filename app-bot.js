@@ -631,22 +631,95 @@ setInterval(() => {
 }, 1000);
 
 // ========== SWAP (DEMO) ==========
-$('#swapBtn').onclick = ()=>alert("Swap flow (demo)");
+$('#swapBtn').onclick = function() { switchPage ('SwapPage'); };
 
-// ========== TRADE PAGE ==========
+// ========== TRADE PAGE - Persistent, TradingView-style, Auto-Trading SPA ==========
+
+// Persistent trade state
+const TRADE_STATE_KEY = "autoTrade_tradeState";
+function getTradeState() {
+  return getLS(TRADE_STATE_KEY, {
+    trades: [],
+    totalBalance: 5000,
+    totalEarnings: 0,
+    totalReturns: 0,
+    lastSymbol: "BINANCE:BTCUSDT"
+  });
+}
+function setTradeState(state) { saveLS(TRADE_STATE_KEY, state); }
+
+function renderTradePage() {
+  let state = getTradeState();
+  // Update balances
+  $('#tradeTotalBalance').innerText = fmtUsd(state.totalBalance);
+  $('#tradeTotalEarnings').innerText = fmtUsd(state.totalEarnings);
+  $('#tradeTotalReturns').innerText = fmtUsd(state.totalReturns);
+  renderActiveTrades();
+  embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
+}
+
+// TradingView widget embed
+function embedTradeChart(symbol) {
+  $('#tradeChart').innerHTML = '';
+  let tvWidget = document.createElement('div');
+  tvWidget.id = "tvChartEmbed";
+  tvWidget.style = "height:340px;";
+  $('#tradeChart').appendChild(tvWidget);
+  new TradingView.widget({
+    container_id: "tvChartEmbed",
+    autosize: true,
+    symbol: symbol,
+    interval: "D",
+    timezone: "Etc/UTC",
+    theme: "dark",
+    style: "1",
+    locale: "en",
+    toolbar_bg: "#0b0f14",
+    enable_publishing: false,
+    allow_symbol_change: true,
+    studies: [],
+    details: true,
+    withdateranges: true,
+    hide_side_toolbar: false
+  });
+}
+
+// Active trades list
+function renderActiveTrades() {
+  let state = getTradeState();
+  let nowTs = now();
+  let html = state.trades.length ?
+    state.trades.map((t,i) => {
+      let left = Math.max(0, t.end-nowTs);
+      return `<div class="bg-gray-800 rounded p-2 mb-2">
+        <div>Asset: ${t.symbol}</div>
+        <div>Duration: ${t.duration} month(s) (${formatCountdown(left)})</div>
+        <div>Status: ${left>0?"Active":"Completed"}</div>
+        <div>Returns: ${fmtUsd(t.returns)}</div>
+        <div>Earnings: ${fmtUsd(t.earnings)}</div>
+      </div>`;
+    }).join('')
+    : '<div class="text-gray-400">No active trades</div>';
+  $('#tradeActiveTradesList').innerHTML = html;
+}
+
+// ===== Trade SPA Modal Logic =====
 $('#placeOrderBtn').onclick = function() {
   show($('#tradeModal'));
   setLastPage('trade');
 };
 $('#closeTradeModal').onclick = function() { hide($('#tradeModal')); setLastPage('trade'); };
+
 $('#placeTradeBtn').onclick = function() {
   $('#tradeAssetList').innerHTML = app.marketTop.slice(0,10).map(c=>`
     <div class="flex items-center gap-2 p-2 cursor-pointer trade-asset-row" data-symbol="${c.symbol.toUpperCase()}"><img src="${c.image}" class="w-5 h-5"/>${c.name}</div>
   `).join('');
   show($('#tradeAssetModal'));
-  setLastPage('trade');
+  setLastPage('trade', 'placeTrade');
 };
+
 $('#closeTradeAssetModal').onclick = function() { hide($('#tradeAssetModal')); setLastPage('trade'); };
+
 $('#tradeAssetList').onclick = function(e) {
   let row = e.target.closest('.trade-asset-row');
   if (!row) return;
@@ -654,34 +727,113 @@ $('#tradeAssetList').onclick = function(e) {
   $('#tradeOrderAsset').innerText = "Asset: "+asset;
   $('#tradeDurSelect').value = "";
   show($('#tradeDurModal'));
-  setLastPage('trade');
+  setLastPage('trade', 'selectAsset');
 };
+
 $('#tradeDurConfirm').onclick = function() {
   let dur = $('#tradeDurSelect').value;
   if (!dur) return;
   $('#tradeOrderDur').innerText = "Duration: "+dur+" months";
   show($('#tradePlaceOrderModal'));
-  setLastPage('trade');
+  setLastPage('trade', 'selectDuration');
 };
+
 $('#tradeOrderBtn').onclick = async function() {
   await sleep(15000);
-  let pos = {asset: $('#tradeOrderAsset').innerText.replace("Asset: ",""), start: now(), end: now()+parseInt($('#tradeDurSelect').value)*2592000, dailyRate: 0.1395, amount: 1000, returns: 0};
-  app.tradePositions.push(pos); saveLS(LS.tradePositions, app.tradePositions);
+  let asset = $('#tradeOrderAsset').innerText.replace("Asset: ","");
+  let duration = parseInt($('#tradeDurSelect').value);
+  let tradeStart = now();
+  let tradeEnd = tradeStart + duration*2592000; // 1 month = 30 days
+  let amount = getTradeState().totalBalance || 1000;
+  let returns = 0, earnings = 0;
+  let trade = {symbol: asset, duration, start: tradeStart, end: tradeEnd, amount, returns, earnings, active: true};
+  let state = getTradeState();
+  state.trades.push(trade);
+  setTradeState(state);
   hide($('#tradePlaceOrderModal'));
   alert("Trade activated!");
   setLastPage('trade');
+  renderTradePage();
 };
-$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); setLastPage('trade'); };
+
+$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); setLastPage('trade', 'transfer'); };
 $('#closeTransferModal').onclick = function() { hide($('#tradeTransferModal')); setLastPage('trade'); };
+
 $('#transferBtn').onclick = async function() {
+  let amt = parseFloat($('#transferAmountInput').value);
+  if(isNaN(amt) || amt <= 0) { alert("Enter valid amount."); return; }
+  let transferTo = $('#transferToLabel').innerText === "Transfer to Main Wallet" ? "main" : "trade";
+  $('#transferMsg').innerText = "Processing...";
   await sleep(15000);
-  alert("Transfer processed!");
+  let state = getTradeState();
+  if(transferTo === "main") {
+    if(amt > state.totalBalance) { $('#transferMsg').innerText = "Insufficient trade balance"; return; }
+    state.totalBalance -= amt;
+    $('#transferMsg').innerText = "Transferred to Main Wallet!";
+  } else {
+    state.totalBalance += amt;
+    $('#transferMsg').innerText = "Transferred to Trade Account!";
+  }
+  setTradeState(state);
   hide($('#tradeTransferModal'));
   setLastPage('trade');
+  renderTradePage();
 };
-$('#viewEarningsBtn').onclick = function() { show($('#tradeEarningsModal')); setLastPage('trade'); };
+
+$('#viewEarningsBtn').onclick = function() {
+  show($('#tradeEarningsModal'));
+  setLastPage('trade', 'earnings');
+  renderEarningsPage();
+};
+
 $('#closeTradeEarningsModal').onclick = function() { hide($('#tradeEarningsModal')); setLastPage('trade'); };
 
+// Earnings modal logic
+function renderEarningsPage() {
+  let state = getTradeState();
+  $('#tradeEarningsBalance').innerText = fmtUsd(state.totalEarnings);
+  embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
+  $('#tvTransferBtnEarnings').onclick = () => show($('#tradeTransferModal'));
+}
+
+// Transfer modal switch logic
+$('#switchTransferBtn').onclick = function() {
+  let label = $('#transferToLabel').innerText;
+  $('#transferToLabel').innerText = label === "Transfer to Main Wallet" ? "Transfer to Trade Account" : "Transfer to Main Wallet";
+};
+
+// Returns generator: runs every minute, persists daily profit, never resets on refresh
+function startTradeReturnsGenerator() {
+  let state = getTradeState();
+  let nowTs = now();
+  state.trades.forEach(trade => {
+    if(trade.active && nowTs < trade.end) {
+      let daysPassed = Math.floor((nowTs - trade.start)/86400);
+      let returns = trade.amount * Math.pow(1 + 0.1195, daysPassed) - trade.amount;
+      trade.returns = returns;
+      trade.earnings = trade.amount + returns;
+      if(nowTs >= trade.end) trade.active = false;
+    }
+  });
+  state.totalReturns = state.trades.reduce((a,t)=>a+t.returns,0);
+  state.totalEarnings = state.trades.reduce((a,t)=>a+t.earnings,0);
+  setTradeState(state);
+  renderTradePage();
+}
+setInterval(startTradeReturnsGenerator, 60000);
+
+window.addEventListener('DOMContentLoaded', function() {
+  renderTradePage();
+  let lastPage = getLastPage();
+  let lastActivity = getLastActivity();
+  if(lastPage === 'trade') {
+    if(lastActivity === 'earnings') show($('#tradeEarningsModal'));
+    else if(lastActivity === 'transfer') show($('#tradeTransferModal'));
+    else if(lastActivity === 'placeTrade') show($('#tradeAssetModal'));
+    else if(lastActivity === 'selectAsset') show($('#tradeDurModal'));
+    else if(lastActivity === 'selectDuration') show($('#tradePlaceOrderModal'));
+  }
+});
 // ========== SETTINGS ==========
 $('#settingsBtn').onclick = function() { switchPage('settingsPage'); };
 $('#closeAccountBtn').onclick = async function() {
