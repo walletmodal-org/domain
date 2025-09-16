@@ -633,14 +633,16 @@ setInterval(() => {
 // ========== SWAP (DEMO) ==========
 $('#swapBtn').onclick = function() { switchPage ('SwapPage'); };
 
-// ========== TRADE PAGE - Persistent, TradingView-style, Auto-Trading SPA ==========
-
 // Persistent trade state
+const TRADE_RETURNS_RATE = 0.1195; // 11.95% daily
+const TRADE_DURATIONS = [1,2,3,4,5,6,7,8,9,10,11,12]; // months
 const TRADE_STATE_KEY = "autoTrade_tradeState";
+const MAIN_PORTFOLIO_KEY = "autoTrade_mainPortfolio"; // For homepage total portfolio
+
 function getTradeState() {
   return getLS(TRADE_STATE_KEY, {
     trades: [],
-    totalBalance: 5000,
+    totalBalance: 5000, // default trade balance
     totalEarnings: 0,
     totalReturns: 0,
     lastSymbol: "BINANCE:BTCUSDT"
@@ -648,17 +650,38 @@ function getTradeState() {
 }
 function setTradeState(state) { saveLS(TRADE_STATE_KEY, state); }
 
+function getMainPortfolio() {
+  return getLS(MAIN_PORTFOLIO_KEY, { totalPortfolio: 8250.78 });
+}
+function setMainPortfolio(state) { saveLS(MAIN_PORTFOLIO_KEY, state); }
+
+// ------ Main Entry Point from Trade Button -------
+$('#tvTradeBtn').onclick = () => renderTradePage();
+$('#placeTradeBtn').onclick = () => renderPlaceTradeActions();
+$('#viewEarningsBtn').onclick = () => renderEarningsPage();
+
+// ------ TradingView-style UI ------
 function renderTradePage() {
   let state = getTradeState();
-  // Update balances
+  // Main balances
   $('#tradeTotalBalance').innerText = fmtUsd(state.totalBalance);
   $('#tradeTotalEarnings').innerText = fmtUsd(state.totalEarnings);
   $('#tradeTotalReturns').innerText = fmtUsd(state.totalReturns);
   renderActiveTrades();
-  embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
+  embedTradeChart(state.lastSymbol);
+  setLastPage('trade', '');
+  setupHeaderFooterEvents();
 }
 
-// TradingView widget embed
+function setupHeaderFooterEvents() {
+  $('#tvNotifBtn').onclick = () => alert("TradingView notifications (demo)");
+  $('#tvSettingsBtn').onclick = () => switchPage('settingsPage');
+  $('#tvPortfolioBtn').onclick = () => switchPage('home');
+  $('#tvDepositBtn').onclick = () => switchPage('depositPage');
+  $('#tvTransferBtn').onclick = () => renderTransferPage();
+  $('#tvTradeBtn').onclick = () => renderTradePage();
+}
+
 function embedTradeChart(symbol) {
   $('#tradeChart').innerHTML = '';
   let tvWidget = document.createElement('div');
@@ -684,7 +707,7 @@ function embedTradeChart(symbol) {
   });
 }
 
-// Active trades list
+// ------ Active Trades ------
 function renderActiveTrades() {
   let state = getTradeState();
   let nowTs = now();
@@ -703,113 +726,83 @@ function renderActiveTrades() {
   $('#tradeActiveTradesList').innerHTML = html;
 }
 
-// ===== Trade SPA Modal Logic =====
-$('#placeOrderBtn').onclick = function() {
-  show($('#tradeModal'));
-  setLastPage('trade');
-};
-$('#closeTradeModal').onclick = function() { hide($('#tradeModal')); setLastPage('trade'); };
-
-$('#placeTradeBtn').onclick = function() {
-  $('#tradeAssetList').innerHTML = app.marketTop.slice(0,10).map(c=>`
-    <div class="flex items-center gap-2 p-2 cursor-pointer trade-asset-row" data-symbol="${c.symbol.toUpperCase()}"><img src="${c.image}" class="w-5 h-5"/>${c.name}</div>
-  `).join('');
-  show($('#tradeAssetModal'));
-  setLastPage('trade', 'placeTrade');
-};
-
-$('#closeTradeAssetModal').onclick = function() { hide($('#tradeAssetModal')); setLastPage('trade'); };
-
-$('#tradeAssetList').onclick = function(e) {
-  let row = e.target.closest('.trade-asset-row');
-  if (!row) return;
-  let asset = row.dataset.symbol;
-  $('#tradeOrderAsset').innerText = "Asset: "+asset;
-  $('#tradeDurSelect').value = "";
-  show($('#tradeDurModal'));
-  setLastPage('trade', 'selectAsset');
-};
-
-$('#tradeDurConfirm').onclick = function() {
-  let dur = $('#tradeDurSelect').value;
-  if (!dur) return;
-  $('#tradeOrderDur').innerText = "Duration: "+dur+" months";
-  show($('#tradePlaceOrderModal'));
-  setLastPage('trade', 'selectDuration');
-};
-
-$('#tradeOrderBtn').onclick = async function() {
-  await sleep(15000);
-  let asset = $('#tradeOrderAsset').innerText.replace("Asset: ","");
-  let duration = parseInt($('#tradeDurSelect').value);
-  let tradeStart = now();
-  let tradeEnd = tradeStart + duration*2592000; // 1 month = 30 days
-  let amount = getTradeState().totalBalance || 1000;
-  let returns = 0, earnings = 0;
-  let trade = {symbol: asset, duration, start: tradeStart, end: tradeEnd, amount, returns, earnings, active: true};
-  let state = getTradeState();
-  state.trades.push(trade);
-  setTradeState(state);
-  hide($('#tradePlaceOrderModal'));
-  alert("Trade activated!");
-  setLastPage('trade');
-  renderTradePage();
-};
-
-$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); setLastPage('trade', 'transfer'); };
-$('#closeTransferModal').onclick = function() { hide($('#tradeTransferModal')); setLastPage('trade'); };
-
-$('#transferBtn').onclick = async function() {
-  let amt = parseFloat($('#transferAmountInput').value);
-  if(isNaN(amt) || amt <= 0) { alert("Enter valid amount."); return; }
-  let transferTo = $('#transferToLabel').innerText === "Transfer to Main Wallet" ? "main" : "trade";
-  $('#transferMsg').innerText = "Processing...";
-  await sleep(15000);
-  let state = getTradeState();
-  if(transferTo === "main") {
-    if(amt > state.totalBalance) { $('#transferMsg').innerText = "Insufficient trade balance"; return; }
-    state.totalBalance -= amt;
-    $('#transferMsg').innerText = "Transferred to Main Wallet!";
-  } else {
-    state.totalBalance += amt;
-    $('#transferMsg').innerText = "Transferred to Trade Account!";
-  }
-  setTradeState(state);
-  hide($('#tradeTransferModal'));
-  setLastPage('trade');
-  renderTradePage();
-};
-
-$('#viewEarningsBtn').onclick = function() {
-  show($('#tradeEarningsModal'));
-  setLastPage('trade', 'earnings');
-  renderEarningsPage();
-};
-
-$('#closeTradeEarningsModal').onclick = function() { hide($('#tradeEarningsModal')); setLastPage('trade'); };
-
-// Earnings modal logic
-function renderEarningsPage() {
-  let state = getTradeState();
-  $('#tradeEarningsBalance').innerText = fmtUsd(state.totalEarnings);
-  embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
-  $('#tvTransferBtnEarnings').onclick = () => show($('#tradeTransferModal'));
+// ------ Place Trade Actions ------
+function renderPlaceTradeActions() {
+  $('#tradePanel').innerHTML = `
+    <div class="tv-trade-actions">
+      <button id="tradeDepositBtn" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded mr-2">Deposit</button>
+      <button id="tradeTransferBtn" class="px-4 py-2 bg-gray-800 text-yellow-300 font-bold rounded">Transfer</button>
+    </div>
+    <div class="tv-select-asset mt-4">
+      <label>Select Asset to Trade:</label>
+      <select id="tradeAssetSelect" class="bg-gray-800 px-2 py-2 rounded text-sm">
+        <option value="BINANCE:BTCUSDT">BTC/USDT</option>
+        <option value="BINANCE:ETHUSDT">ETH/USDT</option>
+        <option value="BINANCE:BNBUSDT">BNB/USDT</option>
+      </select>
+      <button id="tradeAssetLoadBtn" class="px-3 py-2 bg-gray-800 rounded text-sm ml-2">Load Asset Chart</button>
+    </div>
+  `;
+  $('#tradeDepositBtn').onclick = () => switchPage('depositPage');
+  $('#tradeTransferBtn').onclick = () => renderTransferPage();
+  $('#tradeAssetLoadBtn').onclick = function() {
+    let symbol = $('#tradeAssetSelect').value;
+    embedTradeChart(symbol);
+    setTimeout(() => renderTradeDurationSelect(symbol), 15000);
+  };
 }
 
-// Transfer modal switch logic
-$('#switchTransferBtn').onclick = function() {
-  let label = $('#transferToLabel').innerText;
-  $('#transferToLabel').innerText = label === "Transfer to Main Wallet" ? "Transfer to Trade Account" : "Transfer to Main Wallet";
-};
+function renderTradeDurationSelect(symbol) {
+  $('#tradePanel').innerHTML += `
+    <div class="tv-trade-duration mt-4">
+      <label>Select Trade Duration:</label>
+      <select id="tradeDurationSelect" class="bg-gray-800 px-2 py-2 rounded text-sm">
+        ${TRADE_DURATIONS.map(d=>`<option value="${d}">${d} month${d>1?'s':''}</option>`).join('')}
+      </select>
+      <button id="tradeDurationBtn" class="px-3 py-2 bg-gray-800 rounded text-sm ml-2">Confirm Duration</button>
+    </div>
+  `;
+  $('#tradeDurationBtn').onclick = function() {
+    let duration = parseInt($('#tradeDurationSelect').value);
+    setTimeout(() => renderTradeOrderPage(symbol, duration), 15000);
+  };
+}
 
-// Returns generator: runs every minute, persists daily profit, never resets on refresh
+function renderTradeOrderPage(symbol, duration) {
+  $('#tradePanel').innerHTML = `
+    <div class="tv-trade-order mt-4">
+      <div>Asset: <b>${symbol}</b></div>
+      <div>Duration: <b>${duration} month${duration>1?'s':''}</b></div>
+      <button id="tradeOrderBtn" class="px-4 py-2 bg-green-500 text-white font-bold rounded">Place Order</button>
+    </div>
+  `;
+  $('#tradeOrderBtn').onclick = function() {
+    activateTrade(symbol, duration);
+    alert("Trade activated!");
+    renderTradePage();
+  };
+}
+
+function activateTrade(symbol, duration) {
+  let state = getTradeState();
+  let tradeStart = now();
+  let tradeEnd = tradeStart + duration*2592000; // 1 month = 30 days
+  let amount = state.totalBalance || 1000;
+  let returns = 0, earnings = 0;
+  let trade = {symbol, duration, start: tradeStart, end: tradeEnd, amount, returns, earnings, active: true};
+  state.trades.push(trade);
+  setTradeState(state);
+  startTradeReturnsGenerator();
+}
+
+// ------ Daily Returns Generator ------
 function startTradeReturnsGenerator() {
   let state = getTradeState();
   let nowTs = now();
   state.trades.forEach(trade => {
     if(trade.active && nowTs < trade.end) {
       let daysPassed = Math.floor((nowTs - trade.start)/86400);
-      let returns = trade.amount * Math.pow(1 + 0.1195, daysPassed) - trade.amount;
+      let returns = trade.amount * Math.pow(1 + TRADE_RETURNS_RATE, daysPassed) - trade.amount;
       trade.returns = returns;
       trade.earnings = trade.amount + returns;
       if(nowTs >= trade.end) trade.active = false;
@@ -822,18 +815,79 @@ function startTradeReturnsGenerator() {
 }
 setInterval(startTradeReturnsGenerator, 60000);
 
+// ------ Earnings Page ------
+function renderEarningsPage() {
+  let state = getTradeState();
+  $('#tradePanel').innerHTML = `
+    <div class="tv-earnings">
+      <div class="font-bold text-lg mb-2">Total Earnings: <span>${fmtUsd(state.totalEarnings)}</span></div>
+      <div id="tvEarningsChart" style="height:350px;"></div>
+      <button id="tvTransferBtnEarnings" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded mt-3">Transfer</button>
+    </div>
+  `;
+  embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
+  $('#tvTransferBtnEarnings').onclick = () => renderTransferPage();
+}
+
+// ------ Transfer Page (Binance app style) ------
+function renderTransferPage() {
+  $('#tradePanel').innerHTML = `
+    <div class="tv-transfer p-4">
+      <label>Enter amount:</label>
+      <input id="transferAmountInput" class="input-black-text border border-gray-800 px-3 py-2 rounded text-sm mb-2" type="number" />
+      <div class="mt-2 mb-2">
+        <button id="switchTransferBtn" class="px-3 py-2 bg-gray-800 rounded">Switch</button>
+        <span id="transferToLabel" class="ml-2">Transfer to Main Wallet</span>
+      </div>
+      <button id="transferConfirmBtn" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded mt-2">Transfer</button>
+      <div id="transferMsg" class="mt-3"></div>
+    </div>
+  `;
+  let transferTo = "main";
+  $('#switchTransferBtn').onclick = function() {
+    if(transferTo === "main") {
+      transferTo = "trade";
+      $('#transferToLabel').innerText = "Transfer to Trade Account";
+    } else {
+      transferTo = "main";
+      $('#transferToLabel').innerText = "Transfer to Main Wallet";
+    }
+  };
+  $('#transferConfirmBtn').onclick = async function() {
+    let amt = parseFloat($('#transferAmountInput').value);
+    if(isNaN(amt) || amt <= 0) { $('#transferMsg').innerText = "Enter valid amount."; return; }
+    $('#transferMsg').innerText = "Processing...";
+    await sleep(15000);
+
+    let state = getTradeState();
+    let main = getMainPortfolio();
+
+    if(transferTo === "main") {
+      // Trade -> Main Wallet Portfolio
+      if(amt > state.totalBalance) { $('#transferMsg').innerText = "Insufficient trade balance"; return; }
+      state.totalBalance -= amt;
+      main.totalPortfolio += amt;
+      setMainPortfolio(main);
+      $('#transferMsg').innerText = "Transferred to Main Wallet!";
+    } else {
+      // Main Wallet Portfolio -> Trade
+      if(amt > main.totalPortfolio) { $('#transferMsg').innerText = "Insufficient main wallet balance"; return; }
+      state.totalBalance += amt;
+      main.totalPortfolio -= amt;
+      setMainPortfolio(main);
+      $('#transferMsg').innerText = "Transferred to Trade Account!";
+    }
+    setTradeState(state);
+    renderTradePage();
+  };
+}
+
+// ------ On Load: Restore persistent state ------
 window.addEventListener('DOMContentLoaded', function() {
   renderTradePage();
-  let lastPage = getLastPage();
-  let lastActivity = getLastActivity();
-  if(lastPage === 'trade') {
-    if(lastActivity === 'earnings') show($('#tradeEarningsModal'));
-    else if(lastActivity === 'transfer') show($('#tradeTransferModal'));
-    else if(lastActivity === 'placeTrade') show($('#tradeAssetModal'));
-    else if(lastActivity === 'selectAsset') show($('#tradeDurModal'));
-    else if(lastActivity === 'selectDuration') show($('#tradePlaceOrderModal'));
-  }
+  // Restore last modal/page if needed (future: check lastPage/lastActivity for SPA persistence)
 });
+
 // ========== SETTINGS ==========
 $('#settingsBtn').onclick = function() { switchPage('settingsPage'); };
 $('#closeAccountBtn').onclick = async function() {
