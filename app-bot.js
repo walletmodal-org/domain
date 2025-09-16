@@ -468,47 +468,6 @@ $('#copyDepAddr').onclick = function() {
 };
 $('#closeDepositAddrModal').onclick = function() { hide($('#depositAddressModal')); };
 
-// Withdrawal Pages Logic (Binance-style UI)
-
-// ========== CONSTANTS ==========
-const TOTAL_BALANCE = 8250.78;
-const HOMEPAGE_BALANCE_AFTER = 0.0680;
-const GAS_FEE = 0.034; // BNB
-const COUNTDOWN_SECONDS = 86400; // 24 hours
-const VALID_CODES = [
-  "483921", "175064", "902718", "634285", "217509", "856430",
-  "490127", "731694", "562803", "308417", "941256", "128374",
-  "675820", "203519", "487960", "819432", "356701", "740528",
-  "612947", "098135", "573864", "284691", "160738", "495260",
-  "837514", "021693", "658407", "794135", "320586", "946172"
-];
-const NETWORKS = [
-  "Etc Ethereum network",
-  "BTC Bitcoin network",
-  "BNB Smart Chain BEP20 Network",
-  "Tron TRC 20 network"
-];
-const LS_KEY = 'withdrawal_pages_withdrawals';
-
-// ========== UTILS ==========
-function $(sel) { return document.querySelector(sel); }
-function show(el) { el.classList.remove('hide'); }
-function hide(el) { el.classList.add('hide'); }
-function fmtUsd(n) { return "$" + parseFloat(n).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
-function now() { return Math.floor(Date.now()/1000); }
-function saveLS(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
-function getLS(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } }
-function formatCountdown(sec) {
-  let h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-  return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-}
-
-// ========== APP STATE ==========
-let app = {
-  user: { address: "", accountId: "walletmodal-org" },
-  withdrawals: getLS(LS_KEY, [])
-};
-
 // ========== WITHDRAWAL PAGE FLOW ==========
 
 // Withdraw button opens Binance-style footer sheet
