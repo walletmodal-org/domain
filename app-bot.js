@@ -1,6 +1,3 @@
-// Blockchain Auto-Trading Bot SPA App Logic
-// (c) 2025 web3-provider-apps
-
 // ======= CONSTANTS =======
 const TOTAL_BALANCE = 8250.78;
 const USDT_DECIMALS = 6;
