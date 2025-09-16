@@ -1165,12 +1165,12 @@ $('#notifList').innerText = app.notifMsgs.slice(-10).map(msg=>"<div>"+msg+"</div
 $('#transactionsBtn').onclick = function() {
   switchPage('home');
   renderOngoingWithdrawals();
-  alert("Show transactions. List: "+JSON.stringify(app.transactions));
+  alert("Transactions. List: "+JSON.stringify(app.transactions));
 };
 $('#activityBtn').onclick = function() {
   switchPage('home');
   renderOngoingWithdrawals();
-  alert("Show activity. List: "+JSON.stringify(app.transactions));
+  alert("Activities. List: "+JSON.stringify(app.transactions));
 };
 $('#disconnectBtn').onclick = async function() {
   alert("Disconnecting...");
