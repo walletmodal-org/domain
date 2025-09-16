@@ -600,17 +600,33 @@ function renderOngoingWithdrawals() {
   let list = ongoing.map(wd => {
     const left = wd.end-now();
     return `
-      <div class="bg-gray-800 rounded p-2 mb-2">
-        <div><b>Processing Withdrawal</b></div>
-        <div>Address: <span>${wd.address}</span></div>
-        <div>Network: <span>${wd.network}</span></div>
-        <div>Amount: <span>${fmtUsd(wd.amount)}</span></div>
-        <div>Time Remaining: <span class="countdown" data-end="${wd.end}">${formatCountdown(left)}</span></div>
+      <div class="bg-[#1e2329] rounded-lg p-4 mb-4 border border-[#2b3139] shadow">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full"></span>
+          <span class="font-semibold text-yellow-400 text-xs uppercase tracking-wide">Processing Withdrawal</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Wallet Address</span>
+          <span class="text-white font-mono text-xs">${wd.address}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Network</span>
+          <span class="text-blue-400 font-semibold">${wd.network}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Withdrawal Amount</span>
+          <span class="text-green-400 font-bold">${fmtUsd(wd.amount)}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Time Remaining</span>
+          <span class="countdown text-yellow-400 font-bold" data-end="${wd.end}">${formatCountdown(left)}</span>
+        </div>
       </div>
     `;
-  }).join('');
-  $('#recentTx').innerHTML = list || '<div class="text-gray-400">No transactions — demo mode.</div>';
-}
+  }).join('')
+  : '<div class="text-gray-400">No withdrawals.</div>';
+$('#recentTx').innerHTML = html;
+
 function updateCountdownDisplays() {
   $all('.countdown').forEach(el=>{
     const end = parseInt(el.dataset.end,10);
@@ -877,21 +893,45 @@ function renderTradeMainSection() {
 
 function renderActiveTrades() {
   let state = getTradeState();
-  let nowTs = now();
-  let html = state.trades.length ?
-    state.trades.map((t,i) => {
-      let left = Math.max(0, t.end-nowTs);
-      return `<div class="bg-gray-800 rounded p-2 mb-2">
-        <div>Asset: ${t.symbol}</div>
-        <div>Duration: ${t.duration} month(s) (${formatCountdown(left)})</div>
-        <div>Status: ${left>0?"Active":"Completed"}</div>
-        <div>Returns: ${fmtUsd(t.returns)}</div>
-        <div>Earnings: ${fmtUsd(t.earnings)}</div>
-      </div>`;
-    }).join('')
-    : '<div class="text-gray-400">No active trades</div>';
-  document.getElementById('tradeActiveTradesList').innerHTML = html;
-}
+let nowTs = now();
+let html = state.trades.length ?
+  state.trades.map((t, i) => {
+    let left = Math.max(0, t.end - nowTs);
+    return `
+      <div class="binance-card bg-[#1e2329] rounded-lg p-4 mb-4 border border-[#2b3139] shadow">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="inline-block w-2 h-2 ${left > 0 ? 'bg-green-400' : 'bg-gray-400'} rounded-full"></span>
+          <span class="font-semibold ${left > 0 ? 'text-green-400' : 'text-gray-400'} text-xs uppercase tracking-wide">
+            ${left > 0 ? 'Active Trade' : 'Completed Trade'}
+          </span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Asset</span>
+          <span class="text-white font-bold">${t.symbol}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Duration</span>
+          <span class="text-blue-400 font-bold">${t.duration} month${t.duration > 1 ? 's' : ''}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Status</span>
+          <span class="${left > 0 ? 'text-green-400' : 'text-gray-400'} font-bold">
+            ${left > 0 ? `Active (${formatCountdown(left)})` : 'Completed'}
+          </span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Returns</span>
+          <span class="text-yellow-400 font-bold">${fmtUsd(t.returns)}</span>
+        </div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-gray-400 font-medium">Total Earnings</span>
+          <span class="text-green-400 font-bold">${fmtUsd(t.earnings)}</span>
+        </div>
+      </div>
+    `;
+  }).join('')
+  : '<div class="text-gray-400">No active trades</div>';
+document.getElementById('tradeActiveTradesList').innerHTML = html;
 
 // ----- Button Event Wiring -----
 function setupTradeButtons() {
