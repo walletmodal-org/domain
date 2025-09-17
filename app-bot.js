@@ -632,7 +632,7 @@ setInterval(() => {
 
 // ========== SWAP (DEMO) ==========
 $('#swapBtn').onclick = function() { switchPage('SwapPage'); };
-$('#closeAccountBtn').onclick = async function() {
+
 
 // ========== Trade Page + Trading Functions (TradingView + Simulation, SPA persistent, MT5 Dashboard) ==========
 
