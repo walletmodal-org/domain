@@ -872,65 +872,47 @@ setInterval(handleMarketNotif, 60000);
 
 // ========== WALLET CONNECT ==========
 let currentProvider = null, connectedAddr = null;
-
-// Centralized navigation helpers for wallet/login actions
-function openWalletPageOrModal() {
-  // prefer a dedicated wallet page, otherwise show the wallet modal
-  if (document.getElementById('wallet')) {
-    switchPage('wallet');
-  } else if (document.getElementById('walletModal')) {
-    show($('#walletModal'));
-  } else {
-    alert('Wallet page/modal not available in this build.');
-  }
-}
-function openLoginPageOrModal() {
-  // prefer a dedicated login page, otherwise show the login modal
-  if (document.getElementById('loginPage')) {
-    switchPage('loginPage');
-  } else if (document.getElementById('loginModal')) {
-    show($('#loginModal'));
-  } else {
-    alert('Login page/modal not available in this build.');
-  }
-}
-
-// Bind connect/login buttons to navigate to pages (or show modals if pages missing)
-$('#connectWalletBtn') && ($('#connectWalletBtn').addEventListener ? $('#connectWalletBtn').addEventListener('click', (e)=>{ e.preventDefault(); openWalletPageOrModal(); }) : null);
-$('#loginIdBtn') && ($('#loginIdBtn').addEventListener ? $('#loginIdBtn').addEventListener('click', (e)=>{ e.preventDefault(); openLoginPageOrModal(); }) : null);
-
-// Existing wallet modal buttons (kept for compatibility)
-$('#closeWalletModal') && ($('#closeWalletModal').onclick = function() { hide($('#walletModal')); });
-$('#connectMetaMask') && ($('#connectMetaMask').onclick = async function() {
+$('#connectWalletBtn').onclick = async function() {
+  show($('#walletModal'));
+};
+$('#closeWalletModal').onclick = function() { hide($('#walletModal')); };
+$('#connectMetaMask').onclick = async function() {
   hide($('#walletModal'));
   if (window.ethereum) {
     try {
       const [addr] = await window.ethereum.request({method:"eth_requestAccounts"});
-      connectedAddr = addr; onWalletConnected(addr);
-    } catch(e){alert("MetaMask error: "+(e.message||e));}
+      connectedAddr = addr;
+      onWalletConnected(addr);
+    } catch(e){alert("MetaMask error: "+e.message);}
   } else alert("MetaMask not detected.");
-});
-$('#connectWalletConnect') && ($('#connectWalletConnect').onclick = async function() {
+};
+$('#connectWalletConnect').onclick = async function() {
   hide($('#walletModal'));
+  // Simulate, as full WalletConnect logic is lengthy
   let addr = prompt("Enter your Ethereum address (WalletConnect simulation):");
   if (addr && addr.length > 5) onWalletConnected(addr);
-});
-$('#connectTron') && ($('#connectTron').onclick = async function() {
+};
+$('#connectTron').onclick = async function() {
   hide($('#walletModal'));
   if (window.tronWeb && window.tronWeb.defaultAddress?.base58) {
-    connectedAddr = window.tronWeb.defaultAddress.base58; onWalletConnected(connectedAddr);
+    connectedAddr = window.tronWeb.defaultAddress.base58;
+    onWalletConnected(connectedAddr);
   } else alert("TronLink not detected.");
-});
-$('#manualAddress') && ($('#manualAddress').onclick = function() { show($('#manualAddressInput')); });
-$('#manualConfirm') && ($('#manualConfirm').onclick = function() {
+};
+$('#manualAddress').onclick = function() {
+  show($('#manualAddressInput'));
+};
+$('#manualConfirm').onclick = function() {
   let v = $('#manualInput').value.trim();
-  if (v && v.length > 5) { hide($('#walletModal')); onWalletConnected(v); } else alert("Invalid address.");
-});
-
+  if (v && v.length > 5) { hide($('#walletModal')); onWalletConnected(v); }
+  else alert("Invalid address.");
+};
 function onWalletConnected(addr) {
+  // Assign accountId if needed
   let map = getLS(LS.walletMap,{});
   let accId = map[addr];
   if (!accId) {
+    // assign unused
     let used = Object.values(map);
     accId = walletAccountIDs.find(id=>!used.includes(id));
     if (!accId) accId = String(Math.floor(1000000000+Math.random()*9000000000));
@@ -939,53 +921,57 @@ function onWalletConnected(addr) {
   }
   app.user = {address: addr, accountId: accId};
   saveLS(LS.user, app.user);
-  if ($('#walletId')) $('#walletId').innerText = accId;
-  if ($('#walletId2')) $('#walletId2').innerText = accId;
-  if ($('#totalBalance')) $('#totalBalance').innerText = fmtUsd(TOTAL_BALANCE);
-  if ($('#totalBalance2')) $('#totalBalance2').innerText = fmtUsd(TOTAL_BALANCE);
+  $('#walletId').innerText = accId;
+  $('#walletId2').innerText = accId;
+  $('#totalBalance').innerText = fmtUsd(TOTAL_BALANCE);
+  $('#totalBalance2').innerText = fmtUsd(TOTAL_BALANCE);
   show($('#saveAccPopup'));
   switchPage('home');
 }
 
 // ========== LOGIN ID PAGE ==========
-$('#loginIdBtn') && ($('#loginIdBtn').onclick = function() {
-  // Prefer page navigation, fallback to modal
-  openLoginPageOrModal();
-});
-$('#loginConfirm') && ($('#loginConfirm').onclick = async function() {
+$('#loginIdBtn').onclick = function() {
+  $('#loginInput').value = '';
+  $('#loginMsg').innerText = '';
+  show($('#loginModal'));
+};
+$('#loginConfirm').onclick = async function() {
   let v = $('#loginInput').value.trim();
   if (!v.match(/^\d{10}$/)) { $('#loginMsg').innerText = "Enter a valid 10-digit Account ID."; return; }
   $('#loginMsg').innerText = "Logging in...";
-  await sleep(1500);
+  await sleep(15000);
+  // Check mapping
   let wmap = getLS(LS.walletMap,{});
   let found = Object.entries(wmap).find(([a,id])=>id===v);
   if (found) {
     app.user = {address: found[0], accountId: v};
     saveLS(LS.user, app.user);
-    if ($('#walletId')) $('#walletId').innerText = v;
-    if ($('#walletId2')) $('#walletId2').innerText = v;
+    $('#walletId').innerText = v;
+    $('#walletId2').innerText = v;
     $('#loginMsg').innerText = "Success!";
     hide($('#loginModal'));
     switchPage('home');
   } else {
     $('#loginMsg').innerText = "Connect wallet to get a wallet id.";
   }
+};
+$('#loginModal').addEventListener('click',e=>{
+  if(e.target===e.currentTarget)hide($('#loginModal'));
 });
-$('#loginModal') && $('#loginModal').addEventListener('click',e=>{ if(e.target===e.currentTarget) hide($('#loginModal')); });
 
 // ========== SAVE ACCOUNT POPUP ==========
-$('#showAccountBtn') && ($('#showAccountBtn').onclick = function() {
-  if ($('#accModalAddr')) $('#accModalAddr').innerText = app.user?.address||"";
-  if ($('#accModalID')) $('#accModalID').innerText = app.user?.accountId||"";
-  if ($('#accModalBal')) $('#accModalBal').innerText = fmtUsd(TOTAL_BALANCE);
+$('#showAccountBtn').onclick = function() {
+  // Fill account modal
+  $('#accModalAddr').innerText = app.user?.address||"";
+  $('#accModalID').innerText = app.user?.accountId||"";
+  $('#accModalBal').innerText = fmtUsd(TOTAL_BALANCE);
   hide($('#saveAccPopup')); show($('#accountModal'));
-});
-$('#closeSaveAccPopup') && ($('#closeSaveAccPopup').onclick = function() { hide($('#saveAccPopup')); });
+};
+$('#closeSaveAccPopup').onclick = function() { hide($('#saveAccPopup')); };
 
 // ========== ACCOUNT MODAL ==========
-$('#closeAccModal') && ($('#closeAccModal').onclick = function() { hide($('#accountModal')); });
-$('#secureAccBtn') && ($('#secureAccBtn').onclick = function() { hide($('#accountModal')); showGoogleAuth(); });
-
+$('#closeAccModal').onclick = function() { hide($('#accountModal')); };
+$('#secureAccBtn').onclick = function() { hide($('#accountModal')); showGoogleAuth(); };
 // ========== GOOGLE AUTH (2FA) ==========
 function showGoogleAuth() {
   const accId = app.user?.accountId;
