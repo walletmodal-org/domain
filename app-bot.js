@@ -631,9 +631,10 @@ setInterval(() => {
 }, 1000);
 
 // ========== SWAP (DEMO) ==========
-$('#swapBtn').onclick = ()=>alert("Swap flow (demo)");
+$('#swapBtn').onclick = function() { switchPage('SwapPage'); };
+$('#closeAccountBtn').onclick = async function() {
 
-// ========== Trade Page + Trading Functions (TradingView + Simulation, SPA persistent) ==========
+// ========== Trade Page + Trading Functions (TradingView + Simulation, SPA persistent, MT5 Dashboard) ==========
 
 const TRADE_RETURNS_RATE = 0.1195; // 11.95% daily
 const TRADE_DURATIONS = [1,2,3,4,5,6,7,8,9,10,11,12];
@@ -717,10 +718,6 @@ function setMainPortfolio(state) { saveLS(MAIN_PORTFOLIO_KEY, state); }
 let tradingSimulationData = null;
 let tradingSimulationInterval = null;
 let usdtAmount = getTradeState().totalBalance || 0;
-
-function fillMaxTradingAmount() {
-  document.getElementById('investmentAmount').value = usdtAmount.toFixed(2);
-}
 
 function calculateTradingReturns() {
   const amount = parseFloat(document.getElementById('investmentAmount').value);
@@ -852,26 +849,60 @@ function showTradingToast(message) {
   setTimeout(() => { toast.style.transform = 'translateX(400px)'; setTimeout(() => { if (toast.parentNode) { toast.parentNode.removeChild(toast); } }, 300); }, 3000);
 }
 
+// ---- MT5 Trade Dashboard Section ----
+function renderMT5Dashboard() {
+  let state = getTradeState();
+  // MT5 Style: Balance, Equity, Free Margin
+  // Balance = totalBalance + totalEarnings
+  // Equity = Balance + totalReturns (all active trade returns)
+  // Free Margin = Balance - sum of all active trade amounts
+  let totalInvested = state.trades.reduce((a, t) => t.active ? a + t.amount : a, 0);
+  let balance = state.totalBalance + state.totalEarnings;
+  let equity = balance + state.totalReturns;
+  let freeMargin = balance - totalInvested;
+
+  document.getElementById('mt5DashboardSection').innerHTML = `
+    <div class="mt5-dashboard bg-gray-900 p-4 rounded-lg mb-4">
+      <div class="flex justify-between mb-2">
+        <div class="font-bold">Balance</div>
+        <div class="font-mono">${fmtUsd(balance)}</div>
+      </div>
+      <div class="flex justify-between mb-2">
+        <div class="font-bold">Equity</div>
+        <div class="font-mono">${fmtUsd(equity)}</div>
+      </div>
+      <div class="flex justify-between mb-2">
+        <div class="font-bold">Free Margin</div>
+        <div class="font-mono">${fmtUsd(freeMargin)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ---- Main Section UI ----
 function updateBalanceDisplay() {
-  // Update trade balance and main portfolio balance in UI
-  document.getElementById('tradeTotalBalance').textContent = `$${usdtAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  let state = getTradeState();
+  // Update trade balance in UI
+  document.getElementById('tradeTotalBalance').textContent = fmtUsd(state.totalBalance);
+  document.getElementById('tradeTotalEarnings').textContent = fmtUsd(state.totalEarnings);
+  document.getElementById('tradeTotalReturns').textContent = fmtUsd(state.totalReturns);
+  renderMT5Dashboard();
   // If homepage/main portfolio balance element exists, update it too
   const mainPortfolio = getMainPortfolio();
   if (document.getElementById('mainPortfolioBalance'))
-    document.getElementById('mainPortfolioBalance').textContent = `$${mainPortfolio.totalPortfolio.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    document.getElementById('mainPortfolioBalance').textContent = fmtUsd(mainPortfolio.totalPortfolio);
 }
 
 // ---- Trade SPA Modals and Page Logic ----
 function renderTradeMainSection() {
   let state = getTradeState();
   usdtAmount = state.totalBalance;
-  document.getElementById('tradeTotalBalance').innerText = fmtUsd(state.totalBalance);
-  document.getElementById('tradeTotalEarnings').innerText = fmtUsd(state.totalEarnings);
-  document.getElementById('tradeTotalReturns').innerText = fmtUsd(state.totalReturns);
+  updateBalanceDisplay();
   renderActiveTrades();
   embedTradeChart(state.lastSymbol || "BINANCE:BTCUSDT");
   document.getElementById('tradeMainSection').style.display = '';
   document.getElementById('tradeDynamicSection').style.display = 'none';
+  renderMT5Dashboard();
 }
 
 function renderActiveTrades() {
@@ -997,14 +1028,16 @@ function renderTradeOrderPage(symbol, duration) {
   };
 }
 
+// ---- Activate Trade (No fixed trading amount, uses available balance) ----
 function activateTrade(symbol, duration) {
   let state = getTradeState();
   let tradeStart = now();
   let tradeEnd = tradeStart + duration*2592000;
-  let amount = state.totalBalance || 1000;
+  let amount = state.totalBalance; // Use all available trade balance (no fixed trading amount)
   let returns = 0, earnings = 0;
   let trade = {symbol, duration, start: tradeStart, end: tradeEnd, amount, returns, earnings, active: true};
   state.trades.push(trade);
+  state.totalBalance = 0; // All invested
   setTradeState(state);
   startTradeReturnsGenerator();
 }
@@ -1098,7 +1131,7 @@ function startTradeReturnsGenerator() {
   state.totalReturns = state.trades.reduce((a,t)=>a+t.returns,0);
   state.totalEarnings = state.trades.reduce((a,t)=>a+t.earnings,0);
   setTradeState(state);
-  renderTradeMainSection();
+  updateBalanceDisplay();
 }
 setInterval(startTradeReturnsGenerator, 60000);
 
@@ -1119,7 +1152,6 @@ window.addEventListener('DOMContentLoaded', function() {
   setupTradeButtons();
   initializeTradingSimulation();
 });
-
 // ========== SETTINGS ==========
 $('#settingsBtn').onclick = function() { switchPage('settingsPage'); };
 $('#closeAccountBtn').onclick = async function() {
