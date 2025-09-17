@@ -6,7 +6,7 @@ const APP_SHELL = [
   '/manifest.json',
   '/app-logo.png',
   '/app-bot.js' ,
-  '/withdrawal.js',
+  '/withdrawal-pages.js',
   'https://cdn.tailwindcss.com',
   'https://s3.tradingview.com/tv.js',
 ];
