@@ -115,13 +115,15 @@ function switchPage(pageId, activityState = null, skipPersist = false) {
   const target = document.getElementById(pageId);
   if (target) target.classList.remove('hidden');
   if (!skipPersist) setLastPage(pageId, activityState || "");
+  // page-specific initialization
   if (pageId === 'markets') loadMarkets();
   if (pageId === 'home') createTV('tvchart','BINANCE:BTCUSDT');
   if (pageId === 'trade') {
     initializeTradingView(); renderTradeMainSection(); setupTradeButtons();
   }
   if (pageId === 'futures') createTV('futuresChart','BINANCE:BTCUSDT');
-  if (pageId === 'landingPage') initLandingPage();          // landing page functions merged
+  if (pageId === 'SwapPage') loadSwapPage();
+  if (pageId === 'landingPage') initLandingPage();
   if (activityState === "withdrawalProcessing") restoreWithdrawProcessingModal();
   if (activityState === "withdrawalSuccess") restoreWithdrawSuccessModal();
 }
@@ -162,7 +164,7 @@ async function loadMarkets() {
     }
     if ($('#marketsList')) {
       $('#marketsList').innerHTML = data.map(c=>`
-        <div class="flex items-center justify-between p-2 border-b border-gray-800" data-coin="${c.id}">
+        <div class="flex items-center justify-between p-2 border-b border-gray-800 page-section" data-target="marketDetail" data-coin="${c.id}">
           <div class="flex items-center gap-3">
             <img src="${c.image}" class="w-6 h-6 rounded" />
             <div class="text-sm">
@@ -870,7 +872,34 @@ setInterval(handleMarketNotif, 60000);
 
 // ========== WALLET CONNECT ==========
 let currentProvider = null, connectedAddr = null;
-$('#connectWalletBtn') && ($('#connectWalletBtn').onclick = async function() { show($('#walletModal')); });
+
+// Centralized navigation helpers for wallet/login actions
+function openWalletPageOrModal() {
+  // prefer a dedicated wallet page, otherwise show the wallet modal
+  if (document.getElementById('wallet')) {
+    switchPage('wallet');
+  } else if (document.getElementById('walletModal')) {
+    show($('#walletModal'));
+  } else {
+    alert('Wallet page/modal not available in this build.');
+  }
+}
+function openLoginPageOrModal() {
+  // prefer a dedicated login page, otherwise show the login modal
+  if (document.getElementById('loginPage')) {
+    switchPage('loginPage');
+  } else if (document.getElementById('loginModal')) {
+    show($('#loginModal'));
+  } else {
+    alert('Login page/modal not available in this build.');
+  }
+}
+
+// Bind connect/login buttons to navigate to pages (or show modals if pages missing)
+$('#connectWalletBtn') && ($('#connectWalletBtn').addEventListener ? $('#connectWalletBtn').addEventListener('click', (e)=>{ e.preventDefault(); openWalletPageOrModal(); }) : null);
+$('#loginIdBtn') && ($('#loginIdBtn').addEventListener ? $('#loginIdBtn').addEventListener('click', (e)=>{ e.preventDefault(); openLoginPageOrModal(); }) : null);
+
+// Existing wallet modal buttons (kept for compatibility)
 $('#closeWalletModal') && ($('#closeWalletModal').onclick = function() { hide($('#walletModal')); });
 $('#connectMetaMask') && ($('#connectMetaMask').onclick = async function() {
   hide($('#walletModal'));
@@ -920,9 +949,8 @@ function onWalletConnected(addr) {
 
 // ========== LOGIN ID PAGE ==========
 $('#loginIdBtn') && ($('#loginIdBtn').onclick = function() {
-  $('#loginInput') && ($('#loginInput').value = '');
-  $('#loginMsg') && ($('#loginMsg').innerText = '');
-  show($('#loginModal'));
+  // Prefer page navigation, fallback to modal
+  openLoginPageOrModal();
 });
 $('#loginConfirm') && ($('#loginConfirm').onclick = async function() {
   let v = $('#loginInput').value.trim();
@@ -1218,14 +1246,6 @@ $('#activityBtn') && ($('#activityBtn').onclick = function() { switchPage('home'
 $('#disconnectBtn') && ($('#disconnectBtn').onclick = async function() { alert("Disconnecting..."); await sleep(1500); delLS(LS.user); app.user=null; switchPage('landingPage'); });
 
 // ========== LANDING PAGE FUNCTIONS (Merged) ==========
-/*
-  Landing page uses CoinGecko public API to show top coins, search, and detail modal.
-  - initLandingPage(): binds landing page UI controls and loads initial data.
-  - landingLoadTopCoins(page, perPage, append): load market data
-  - landingSearchCoins(q): search API + markets fetch
-  - landingLoadCoinDetails(id): fetch coin details and populate modal (if present)
-  - favorites stored in LS_LANDING_FAV
-*/
 const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 const LANDING_DEFAULT_PER_PAGE = 20;
 const LANDING_TIMEOUT = 8000;
@@ -1260,8 +1280,9 @@ function landing_createCoinCard(c) {
   const id = c.id || c.coin_id || c.symbol || '';
   const coinId = id;
   const div = document.createElement('div');
-  div.className = 'coin-card p-2 border-b border-gray-800 flex items-center justify-between';
+  div.className = 'coin-card p-2 border-b border-gray-800 flex items-center justify-between page-section';
   div.dataset.id = coinId;
+  div.dataset.target = 'coinDetail';
   div.innerHTML = `
     <div class="flex items-center gap-3">
       <img src="${c.image||c.thumb||''}" width="36" height="36" class="rounded" />
@@ -1276,11 +1297,6 @@ function landing_createCoinCard(c) {
     </div>
     <button class="fav-btn ml-3 px-2" aria-label="toggle favorite">${landing_isFavorite(coinId)?'★':'☆'}</button>
   `;
-  // click on card shows details
-  div.addEventListener('click', (e) => {
-    if (e.target && e.target.closest('.fav-btn')) return; // handled separately
-    landing_loadCoinDetailsAndShow(coinId);
-  });
   // favorite click
   const favBtn = div.querySelector('.fav-btn');
   favBtn && favBtn.addEventListener('click', (ev) => {
@@ -1316,7 +1332,6 @@ async function landing_loadTopCoins({ page = 1, perPage = LANDING_DEFAULT_PER_PA
     landing_perPage = perPage;
     landing_lastQuery = null;
     if (statusEl) statusEl.textContent = `Loaded ${coins.length} coins`;
-    // store a small cache in app.coinCache for other pages
     app.coinCache = app.coinCache && app.coinCache.length ? app.coinCache : coins.map(cc=>({id:cc.id,name:cc.name,symbol:cc.symbol,thumb:cc.image}));
   } catch (err) {
     console.error('landing_loadTopCoins error', err);
@@ -1420,6 +1435,85 @@ function initLandingPage(options = {}) {
   // initial load
   landing_loadTopCoins({ page:1, perPage: landing_perPage, append:false });
 }
+
+function handlePageSectionClick(e) {
+  const el = e.target.closest('.page-section');
+  if (!el) return;
+  e.preventDefault();
+  const tgt = el.dataset.target;
+  const coin = el.dataset.coin || el.dataset.id || null;
+
+  // known targets -> navigate
+  if (!tgt) return;
+  if (tgt === 'wallet') {
+    switchPage('wallet');
+    return;
+  }
+  if (tgt === 'login' || tgt === 'loginPage') {
+    switchPage('loginPage');
+    return;
+  }
+  if (tgt === 'marketDetail' && coin) {
+    // open market detail view — attempt to open a page or modal
+    if (document.getElementById('marketDetailPage')) {
+      // populate and switch
+      const p = document.getElementById('marketDetailPage');
+      p.dataset.coin = coin;
+      switchPage('marketDetailPage');
+    } else if (document.getElementById('coinModal')) {
+      landing_loadCoinDetailsAndShow(coin);
+    } else {
+      // fallback to coin page on coingecko
+      window.open(`https://www.coingecko.com/en/coins/${coin}`, '_blank', 'noopener');
+    }
+    return;
+  }
+  if (tgt === 'coinDetail' && coin) {
+    landing_loadCoinDetailsAndShow(coin);
+    return;
+  }
+  // If target corresponds to an internal page id, switch to it
+  if (document.getElementById(tgt)) {
+    switchPage(tgt);
+    return;
+  }
+  // Unknown target — try to call a named action if global
+  if (typeof window[tgt] === 'function') {
+    try { window[tgt](el); } catch (err) { console.warn('action handler failed', err); }
+  }
+}
+
+// Delegated page-section click binding on document
+document.addEventListener('click', handlePageSectionClick);
+
+// Additionally bind any elements with data-target directly (buttons/links)
+function wireDirectDataTargetButtons() {
+  $all('[data-target]').forEach(btn => {
+    // avoid double-binding
+    if (btn.__wired) return;
+    btn.__wired = true;
+    btn.addEventListener('click', (e) => {
+      const tgt = btn.dataset.target;
+      const coin = btn.dataset.coin || null;
+      e.preventDefault();
+      if (!tgt) return;
+      if (tgt === 'wallet') return openWalletPageOrModal();
+      if (tgt === 'login' || tgt === 'loginPage') return openLoginPageOrModal();
+      if (document.getElementById(tgt)) return switchPage(tgt);
+      // coin detail
+      if ((tgt === 'coinDetail' || tgt === 'marketDetail') && coin) return landing_loadCoinDetailsAndShow(coin);
+      // fallback: call global action
+      if (typeof window[tgt] === 'function') try { window[tgt](btn); } catch(e){ console.warn('action call failed', e); }
+    });
+  });
+}
+
+// call wireDirectDataTargetButtons when DOM changes (simple observer)
+const domObserver = new MutationObserver((mutations) => {
+  wireDirectDataTargetButtons();
+});
+domObserver.observe(document.documentElement || document.body, { childList: true, subtree: true });
+
 // ========== INITIAL LOAD ==========
 (function init(){
   loadAppState();
@@ -1436,6 +1530,8 @@ function initLandingPage(options = {}) {
   setInterval(loadUsdt, 60000);
   setInterval(handleMarketNotif, 60000);
   initializeTradingView();
+  // Ensure direct data-target buttons wired early
+  wireDirectDataTargetButtons();
   if (lastPage) switchPage(lastPage, lastActivity, true);
   else if (app.user?.accountId) switchPage('home');
   else switchPage('landingPage');
