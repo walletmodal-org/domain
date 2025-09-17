@@ -1,11 +1,3 @@
-// ======= autotrade-app.js =======
-// Merged and fully updated JavaScript for Auto-Trading app
-// Features included: markets, wallet, deposit, withdraw, trading (MT5 dashboard + simulation),
-// swap (CoinGecko coin list, rates, Uniswap-like swap simulation), transfer from swap to wallet/trade,
-// transactions & activity, settings, notifications, support, account & 2FA handling.
-// NOTE: This file expects corresponding HTML elements with IDs referenced below to exist.
-
-
 // ======= CONSTANTS =======
 const TOTAL_BALANCE = 8250.78;
 const USDT_DECIMALS = 6;
