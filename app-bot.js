@@ -42,6 +42,9 @@ const LS = {
   tradingSimulation: "tradingSimulation"
 };
 
+// Landing page favorites key
+const LS_LANDING_FAV = 'autoTrade_landingFav_v1';
+
 // ========== UTILS ==========
 function $(sel) { return document.querySelector(sel); }
 function $all(sel) { return Array.from(document.querySelectorAll(sel)); }
@@ -118,6 +121,7 @@ function switchPage(pageId, activityState = null, skipPersist = false) {
     initializeTradingView(); renderTradeMainSection(); setupTradeButtons();
   }
   if (pageId === 'futures') createTV('futuresChart','BINANCE:BTCUSDT');
+  if (pageId === 'landingPage') initLandingPage();          // landing page functions merged
   if (activityState === "withdrawalProcessing") restoreWithdrawProcessingModal();
   if (activityState === "withdrawalSuccess") restoreWithdrawSuccessModal();
 }
@@ -1213,6 +1217,209 @@ $('#transactionsBtn') && ($('#transactionsBtn').onclick = function() { switchPag
 $('#activityBtn') && ($('#activityBtn').onclick = function() { switchPage('home'); renderOngoingWithdrawals(); displayActivitySection('activity'); });
 $('#disconnectBtn') && ($('#disconnectBtn').onclick = async function() { alert("Disconnecting..."); await sleep(1500); delLS(LS.user); app.user=null; switchPage('landingPage'); });
 
+// ========== LANDING PAGE FUNCTIONS (Merged) ==========
+/*
+  Landing page uses CoinGecko public API to show top coins, search, and detail modal.
+  - initLandingPage(): binds landing page UI controls and loads initial data.
+  - landingLoadTopCoins(page, perPage, append): load market data
+  - landingSearchCoins(q): search API + markets fetch
+  - landingLoadCoinDetails(id): fetch coin details and populate modal (if present)
+  - favorites stored in LS_LANDING_FAV
+*/
+const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+const LANDING_DEFAULT_PER_PAGE = 20;
+const LANDING_TIMEOUT = 8000;
+
+function landing_getFavorites() {
+  try { const raw = localStorage.getItem(LS_LANDING_FAV); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+}
+function landing_saveFavorites(obj) {
+  try { localStorage.setItem(LS_LANDING_FAV, JSON.stringify(obj)); } catch {}
+}
+function landing_toggleFavorite(coinId) {
+  const fav = landing_getFavorites();
+  if (fav[coinId]) delete fav[coinId];
+  else fav[coinId] = Date.now();
+  landing_saveFavorites(fav);
+  return !!fav[coinId];
+}
+function landing_isFavorite(coinId) { return !!landing_getFavorites()[coinId]; }
+
+async function landing_fetchWithTimeout(url, opts = {}, timeout = LANDING_TIMEOUT) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } finally { clearTimeout(id); }
+}
+async function landing_safeJson(resp) { return resp?.json?.().catch(()=>null); }
+
+function landing_createCoinCard(c) {
+  const id = c.id || c.coin_id || c.symbol || '';
+  const coinId = id;
+  const div = document.createElement('div');
+  div.className = 'coin-card p-2 border-b border-gray-800 flex items-center justify-between';
+  div.dataset.id = coinId;
+  div.innerHTML = `
+    <div class="flex items-center gap-3">
+      <img src="${c.image||c.thumb||''}" width="36" height="36" class="rounded" />
+      <div class="text-sm">
+        <div class="font-medium">${c.name||c.id||''} <span class="text-xs text-gray-400 uppercase">(${(c.symbol||'').toUpperCase()})</span></div>
+        <div class="text-xs text-gray-500">${c.market_cap ? 'Mkt: '+Math.round(c.market_cap).toLocaleString() : ''}</div>
+      </div>
+    </div>
+    <div class="text-right">
+      <div class="font-semibold">${fmtUsd(c.current_price ?? c.price ?? 0)}</div>
+      <div class="text-xs ${((c.price_change_percentage_24h||0) >= 0) ? 'text-green-400' : 'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div>
+    </div>
+    <button class="fav-btn ml-3 px-2" aria-label="toggle favorite">${landing_isFavorite(coinId)?'★':'☆'}</button>
+  `;
+  // click on card shows details
+  div.addEventListener('click', (e) => {
+    if (e.target && e.target.closest('.fav-btn')) return; // handled separately
+    landing_loadCoinDetailsAndShow(coinId);
+  });
+  // favorite click
+  const favBtn = div.querySelector('.fav-btn');
+  favBtn && favBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const nowFav = landing_toggleFavorite(coinId);
+    favBtn.textContent = nowFav ? '★' : '☆';
+    const statusEl = document.querySelector('#landingStatus');
+    if (statusEl) { statusEl.textContent = nowFav ? `${c.name} added to favorites` : `${c.name} removed from favorites`; setTimeout(()=>{ if (statusEl.textContent) statusEl.textContent=''; }, 2000); }
+  });
+  return div;
+}
+
+let landing_currentPage = 1;
+let landing_perPage = LANDING_DEFAULT_PER_PAGE;
+let landing_loading = false;
+let landing_lastQuery = null;
+
+async function landing_loadTopCoins({ page = 1, perPage = LANDING_DEFAULT_PER_PAGE, append = false } = {}) {
+  if (landing_loading) return;
+  landing_loading = true;
+  const statusEl = $('#landingStatus');
+  if (statusEl) statusEl.textContent = 'Loading coins...';
+  try {
+    const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${perPage}&page=${page}&sparkline=false&price_change_percentage=24h`;
+    const resp = await landing_fetchWithTimeout(url);
+    if (!resp || !resp.ok) throw new Error('CoinGecko markets error');
+    const coins = await landing_safeJson(resp) || [];
+    const container = $('#landingCoins');
+    if (!container) throw new Error('Landing coins container not found');
+    if (!append) container.innerHTML = '';
+    coins.forEach(c => container.appendChild(landing_createCoinCard(c)));
+    landing_currentPage = page;
+    landing_perPage = perPage;
+    landing_lastQuery = null;
+    if (statusEl) statusEl.textContent = `Loaded ${coins.length} coins`;
+    // store a small cache in app.coinCache for other pages
+    app.coinCache = app.coinCache && app.coinCache.length ? app.coinCache : coins.map(cc=>({id:cc.id,name:cc.name,symbol:cc.symbol,thumb:cc.image}));
+  } catch (err) {
+    console.error('landing_loadTopCoins error', err);
+    if (statusEl) statusEl.textContent = 'Failed to load coins';
+  } finally {
+    landing_loading = false;
+  }
+}
+
+async function landing_loadMore() {
+  if (landing_loading) return;
+  await landing_loadTopCoins({ page: landing_currentPage + 1, perPage: landing_perPage, append: true });
+}
+
+async function landing_searchCoins(query) {
+  if (!query || !query.trim()) return;
+  if (landing_loading) return;
+  landing_loading = true;
+  const statusEl = $('#landingStatus');
+  if (statusEl) statusEl.textContent = `Searching for "${query}"...`;
+  try {
+    const q = encodeURIComponent(query.trim());
+    const url = `${COINGECKO_BASE}/search?query=${q}`;
+    const resp = await landing_fetchWithTimeout(url);
+    if (!resp || !resp.ok) throw new Error('Search API failed');
+    const data = await landing_safeJson(resp);
+    const ids = (data?.coins || []).slice(0, 12).map(c => c.id).join(',');
+    if (!ids) { if (statusEl) statusEl.textContent = 'No results'; landing_loading=false; return; }
+    const marketsUrl = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&ids=${encodeURIComponent(ids)}&order=market_cap_desc&per_page=12&page=1&sparkline=false`;
+    const mresp = await landing_fetchWithTimeout(marketsUrl);
+    if (!mresp || !mresp.ok) throw new Error('Markets API failed for search');
+    const marketData = await landing_safeJson(mresp) || [];
+    const container = $('#landingCoins');
+    if (!container) throw new Error('Landing coins container not found');
+    container.innerHTML = '';
+    marketData.forEach(c => container.appendChild(landing_createCoinCard(c)));
+    landing_lastQuery = query;
+    if (statusEl) statusEl.textContent = `Search results for "${query}"`;
+  } catch (err) {
+    console.error('landing_searchCoins error', err);
+    const statusEl2 = $('#landingStatus');
+    if (statusEl2) statusEl2.textContent = 'Search failed';
+  } finally {
+    landing_loading = false;
+  }
+}
+
+async function landing_loadCoinDetailsAndShow(coinId) {
+  const statusEl = $('#landingStatus');
+  if (statusEl) statusEl.textContent = 'Loading details...';
+  try {
+    const url = `${COINGECKO_BASE}/coins/${encodeURIComponent(coinId)}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+    const resp = await landing_fetchWithTimeout(url);
+    if (!resp || !resp.ok) throw new Error('Details API failed');
+    const details = await landing_safeJson(resp);
+    if (statusEl) statusEl.textContent = `Loaded ${details?.name || coinId}`;
+    const modal = document.querySelector('#coinModal');
+    if (modal) {
+      const title = modal.querySelector('.modal-title');
+      const body = modal.querySelector('.modal-body');
+      if (title) title.textContent = details.name || coinId;
+      if (body) {
+        body.innerHTML = `
+          <div style="display:flex;gap:12px;align-items:center">
+            <img src="${details.image?.small || ''}" width="48" height="48" alt="${details.symbol}">
+            <div>
+              <div style="font-weight:600">${details.name} (${details.symbol?.toUpperCase()})</div>
+              <div>Market Cap Rank: ${details.market_cap_rank ?? '—'}</div>
+            </div>
+          </div>
+          <hr/>
+          <div>Current Price: ${fmtUsd(details.market_data?.current_price?.usd)}</div>
+          <div>24h Change: ${details.market_data?.price_change_percentage_24h?.toFixed(2) ?? '—'}%</div>
+          <div>Homepage: ${details.links?.homepage?.[0] ? `<a href="${details.links.homepage[0]}" target="_blank" rel="noopener">${details.links.homepage[0]}</a>` : '—'}</div>
+        `;
+      }
+      modal.classList.add('open');
+      const close = modal.querySelector('.modal-close');
+      if (close) close.addEventListener('click', ()=> modal.classList.remove('open'), { once:true });
+    } else {
+      window.open(`https://www.coingecko.com/en/coins/${coinId}`, '_blank', 'noopener');
+    }
+  } catch (e) {
+    console.error('landing_loadCoinDetails error', e);
+    const statusEl2 = $('#landingStatus');
+    if (statusEl2) statusEl2.textContent = 'Failed to load details';
+  }
+}
+
+function initLandingPage(options = {}) {
+  // bind controls if present on the page
+  const refreshBtn = $('#landingRefresh');
+  if (refreshBtn) refreshBtn.addEventListener('click', (e) => { e.preventDefault(); if (!landing_loading) landing_loadTopCoins({ page:1, perPage: landing_perPage, append:false }); });
+  const loadMoreBtn = $('#landingLoadMore');
+  if (loadMoreBtn) loadMoreBtn.addEventListener('click', (e) => { e.preventDefault(); if (!landing_loading) landing_loadMore(); });
+  const searchForm = $('#landingSearchForm');
+  const searchInput = $('#landingSearchInput');
+  if (searchForm && searchInput) {
+    searchForm.addEventListener('submit', (e) => { e.preventDefault(); const q = searchInput.value || ''; if (q.trim()) landing_searchCoins(q.trim()); });
+  }
+  // initial load
+  landing_loadTopCoins({ page:1, perPage: landing_perPage, append:false });
+}
 // ========== INITIAL LOAD ==========
 (function init(){
   loadAppState();
