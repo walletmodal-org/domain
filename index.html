@@ -8,950 +8,907 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="app-logo.png">
   <link rel="apple-touch-icon" href="app-logo.png">
-  <!-- Tailwind CDN (keeps your original look) -->
+  <!-- Tailwind CSS CDN (utility helpers, still self-contained look) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- TradingView -->
+
+  <!-- TradingView (chart embed) -->
   <script src="https://s3.tradingview.com/tv.js"></script>
-  <!-- ethers.js (wallet interactions) -->
+
+  <!-- Ethers + Web3Modal + WalletConnect + Tron + BitcoinJS (for validations if needed) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <!-- Helpful libs -->
   <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib@6.1.0/dist/bitcoinjs-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tronweb@4.4.0/dist/TronWeb.js"></script>
+
+  <!-- otplib for TOTP/Google Authenticator -->
   <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib.umd.min.js"></script>
+  <!-- QRious for QR code generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 
   <style>
-    /* ---- cleaned inline css (keeps your design, tidier) ---- */
-    :root {
-      --bg: #0b0f14;
-      --panel: #111218;
-      --muted: #9aa3b2;
-      --accent: #f0b90b;
-      --card: #0f1114;
-      --border: rgba(255,255,255,0.03);
+    /* ---------- Basic app styles (inline) ---------- */
+    :root{
+      --bg:#0b0f14; --panel:#0f1318; --muted:#8a8f98; --accent:#f0b90b; --card:#121316;
       --glass: rgba(255,255,255,0.02);
     }
-    html,body { margin:0; padding:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#fff; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
-    .page { padding:1rem; }
-    .hidden { display:none!important; }
-    .btn { padding:0.5rem 1rem; border-radius:8px; font-weight:600; cursor:pointer; border:none; }
-    .btn-primary { background:var(--accent); color:#111; }
-    .btn-secondary { background:#23262b; color:#fff; border:1px solid rgba(255,255,255,0.03); }
-    .card { background:var(--panel); border-radius:10px; padding:1rem; border:1px solid var(--border); }
-    .tv-container { background:#0b0f14; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.03); }
-    .coin-row:hover { background:var(--glass); }
-    .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); z-index:60; }
-    .modal-content { background:#15161a; padding:20px; border-radius:12px; width:min(96vw,420px); box-shadow:0 8px 40px rgba(0,0,0,0.6); color:#fff; }
-    .sheet { position:fixed; left:0; right:0; bottom:0; background:#121316; border-top-left-radius:14px; border-top-right-radius:14px; box-shadow:0 -8px 36px rgba(0,0,0,0.6); z-index:55; padding:14px; }
-    .hide { display:none!important; }
-    input, select, textarea { background:#0e1114; border:1px solid rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; color:#fff; width:100%; }
-    .small { font-size:0.85rem; color:#9aa3b2; }
-    footer.fixed-bottom { position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid rgba(255,255,255,0.03); z-index:50; }
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; }
-    .fav-btn { background:transparent; border:none; cursor:pointer; color:var(--accent); font-size:1.05rem; }
-    @media (max-width:640px) { .page { padding:0.75rem; } .grid-2 { grid-template-columns:1fr; } }
+    html,body{height:100%}
+    body { background:var(--bg); color:#fff; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; margin:0; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+    .container{max-width:1100px;margin:0 auto}
+    header, footer { background: #000000aa; backdrop-filter: blur(6px); }
+    .btn { padding: .56rem .9rem; border-radius: 8px; font-weight:600; display:inline-flex; align-items:center; gap:.6rem; cursor:pointer; border:0; }
+    .btn-primary { background:var(--accent); color:#111; box-shadow:0 6px 18px rgba(240,185,11,0.08); }
+    .btn-secondary { background: #1f2328; color:#fff; border:1px solid rgba(255,255,255,0.03); }
+    .card { background:var(--panel); border-radius:12px; border:1px solid rgba(255,255,255,0.03); padding:14px; }
+    .tv-container { border-radius:10px; overflow:hidden; background:#090b0f; border:1px solid rgba(255,255,255,0.03); }
+    .hide{display:none!important} .show{display:block!important}
+    .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); z-index:60 }
+    .modal-content{ background:#0e1114; padding:20px; border-radius:12px; width:96%; max-width:420px; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+    .sheet{ position:fixed; left:0; right:0; bottom:0; background:linear-gradient(180deg,#0e1114,#0b0d10); border-top-left-radius:12px; border-top-right-radius:12px; padding:14px; z-index:70 }
+    .input { background:#0b0d10; border:1px solid rgba(255,255,255,0.03); color:#fff; padding:.6rem .8rem; border-radius:8px; width:100% }
+    .small { font-size:12px; color:var(--muted) }
+    .label { display:flex; gap:.6rem; align-items:center }
+    .badge { background:#101214; border-radius:999px; padding:.25rem .6rem; font-weight:600 }
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:720px){ .grid-2{grid-template-columns:1fr} header .search-hide { display:none } .footer-nav { display:flex; gap:4px; } }
+    .footer-nav button{ flex:1; padding:10px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; background:transparent; border:0; color:#cfd3d8 }
+    nav .tab-active { color:var(--accent); }
+    .icon { width:20px;height:20px; display:inline-block; }
+    .coin-img { width:28px;height:28px;border-radius:8px;background:#0b0d10;display:inline-flex;align-items:center;justify-content:center }
+    .muted { color:var(--muted) }
+    .right { text-align:right }
+    .flex { display:flex; align-items:center }
+    .gap-2{gap:8px}
+    .mt-2{margin-top:8px}
+    .mb-2{margin-bottom:8px}
   </style>
 </head>
 <body>
 
-  <!-- NOTIF -->
-  <div id="notifPop" class="card small hide" style="position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:80;"></div>
+  <!-- NOTIFICATION / INSTALL PROMPT -->
+  <div id="notifPop" class="hide" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:120;background:#0d1113;padding:10px 16px;border-radius:10px;border:1px solid rgba(240,185,11,0.18);color:var(--accent)"></div>
 
-  <!-- HEADER -->
-  <header id="mainHeader" class="flex items-center justify-between p-4 border-b border-gray-800 sticky top-0 bg-black z-40">
+  <div id="installPrompt" class="modal hide" aria-hidden="true">
+    <div class="modal-content">
+      <div class="flex" style="justify-content:space-between;align-items:center">
+        <div>
+          <h3 style="margin:0">Install App</h3>
+          <p class="small muted">Install the Auto-Trading Bot for a native-like experience.</p>
+        </div>
+        <img src="app-logo.png" alt="logo" style="width:44px;height:44px;border-radius:8px">
+      </div>
+      <div class="mt-2" style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="maybeLaterBtn" class="btn btn-secondary">Maybe later</button>
+        <button id="installNowBtn" class="btn btn-primary">Install</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WALLET CONNECT MODAL -->
+  <div id="walletModal" class="modal hide" aria-hidden="true">
+    <div class="modal-content">
+      <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+        <strong>Connect Wallet</strong>
+        <button id="closeWalletModal" class="btn btn-secondary" title="Close">✕</button>
+      </div>
+      <div style="display:grid;gap:10px">
+        <button id="connectMetaMask" class="btn btn-primary">
+          <!-- MetaMask SVG -->
+          <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M..."/></svg>
+          MetaMask
+        </button>
+        <button id="connectWalletConnect" class="btn btn-secondary">
+          <svg class="icon" viewBox="0 0 24 24" fill="none"><path stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg>
+          WalletConnect
+        </button>
+        <button id="connectTron" class="btn btn-secondary">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M..." /></svg> TronLink
+        </button>
+        <button id="manualAddressBtn" class="btn btn-secondary">Manual Address</button>
+
+        <div id="manualAddressInput" class="hide">
+          <input id="manualInput" class="input" placeholder="Paste wallet address" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="manualConfirm" class="btn btn-primary">Confirm</button>
+            <button id="manualCancel" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="modal hide">
+    <div class="modal-content">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Login with Account ID</strong>
+        <button id="closeLoginModal" class="btn btn-secondary">✕</button>
+      </div>
+      <div class="mt-2">
+        <input id="loginInput" class="input" maxlength="10" placeholder="10-digit account ID" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="loginConfirm" class="btn btn-primary">Login</button>
+          <button id="loginCancel" class="btn btn-secondary">Cancel</button>
+        </div>
+        <div id="loginMsg" class="small muted mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Modal -->
+  <div id="accountModal" class="modal hide">
+    <div class="modal-content">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Account</strong>
+        <button id="closeAccModal" class="btn btn-secondary">✕</button>
+      </div>
+      <div class="mt-2 small muted">
+        <div>Address</div>
+        <div id="accModalAddr" style="word-break:break-all;margin:6px 0"></div>
+        <div>Wallet ID</div>
+        <div id="accModalId" style="margin:6px 0"></div>
+        <div>Balance</div>
+        <div id="accModalBal" style="margin:6px 0"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="secureAccBtn" class="btn btn-secondary">Secure (2FA)</button>
+        <button id="closeAccModalBtn" class="btn btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Withdraw / Deposit / Swap / Trade modals are similar to above and created in DOM earlier; for brevity they exist in the DOM below -->
+  <!-- MAIN HEADER -->
+  <header class="container flex items-center justify-between py-3">
     <div class="flex items-center gap-3">
-      <img src="app-logo.png" alt="logo" class="w-9 h-9 rounded"/>
+      <img src="app-logo.png" alt="logo" style="width:44px;height:44px;border-radius:8px" />
       <div>
-        <div style="font-weight:700">Blockchain Bot</div>
-        <div class="small">Auto Trading • Demo</div>
+        <div style="font-weight:700">Blockchain Auto-Trading Bot</div>
+        <div class="small muted">Lite / Pro</div>
       </div>
     </div>
 
-    <div class="flex items-center gap-3">
-      <input id="globalSearch" placeholder="Search coins or pairs" class="hidden sm:block" style="width:340px;padding:8px 12px;border-radius:8px;background:#0e1114;border:1px solid rgba(255,255,255,0.03);color:#fff"/>
-      <button id="notifBtn" title="Notifications" class="btn btn-secondary">🔔</button>
-      <button id="settingsBtn" class="btn btn-secondary">⚙️</button>
-      <div style="position:relative;">
-        <button id="moreBtn" class="btn btn-secondary">⋯</button>
-        <div id="moreMenu" class="card hide" style="position:absolute;right:0;top:40px;min-width:200px;">
-          <a href="#" id="connectedWalletBtn" class="block small py-2">Connected Wallet</a>
-          <a href="#" id="settingsMenuBtn" class="block small py-2">Settings</a>
-          <a href="#" id="supportBtn" class="block small py-2">Support</a>
-          <a href="#" id="disconnectBtn" class="block small py-2">Disconnect</a>
+    <div class="search-hide" style="flex:1;margin:0 14px;">
+      <input id="globalSearch" class="input" placeholder="Search coins, pairs or features" />
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="qrBtn" class="btn btn-secondary" title="QR Scanner">
+        <!-- QR SVG -->
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="1" stroke="#fff"/></svg>
+        Scan
+      </button>
+
+      <button id="notifBtn" class="btn btn-secondary" title="Notifications">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 00-9.3-4.9" stroke="#fff" stroke-width="1.2"/></svg>
+        Alerts
+      </button>
+
+      <button id="settingsBtn" class="btn btn-secondary" title="Settings">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="#fff" stroke-width="1.2"/></svg>
+        Settings
+      </button>
+
+      <div style="position:relative">
+        <button id="moreBtn" class="btn btn-secondary">More ▾</button>
+        <div id="moreMenu" class="card hide" style="position:absolute;right:0;top:48px;width:220px">
+          <a href="#" id="connectedWalletBtn" class="small muted block py-2 px-3">Connected Wallet</a>
+          <a href="#" id="settingsMenuBtn" class="small muted block py-2 px-3">Settings</a>
+          <a href="#" id="supportBtn" class="small muted block py-2 px-3">Support</a>
+          <a href="#" id="disconnectBtn" class="small muted block py-2 px-3">Disconnect</a>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- PAGES (single-file SPA) -->
-  <main id="appRoot" style="padding-bottom:84px;">
+  <!-- MAIN PAGES (SPA) -->
+  <main class="container" id="appMain" style="padding-bottom:120px;margin-top:18px">
 
-    <!-- LANDING -->
+    <!-- LANDING PAGE -->
     <section id="landingPage" class="page">
-      <div style="max-width:920px;margin:0 auto;text-align:center">
-        <img src="app-logo.png" class="w-20 h-20 mx-auto rounded mb-3"/>
-        <h1 style="font-size:1.6rem;color:var(--accent);margin:0 0 6px;font-weight:800">Blockchain Auto-Trading Bot</h1>
-        <p class="small" style="max-width:760px;margin:0 auto 16px">Automate trading with on-chain precision and AI-driven strategies. Connect your wallet, configure risk controls, and trade with speed and security.</p>
+      <div style="text-align:center;margin-top:30px">
+        <img src="app-logo.png" style="width:96px;height:96px;border-radius:12px" alt="logo" />
+        <h1 style="color:var(--accent);margin-top:8px">Blockchain Auto-Trading Bot</h1>
+        <p class="muted" style="max-width:760px;margin:8px auto">Automate trading with on-chain precision and AI-driven strategies. Connect your wallet, configure risk controls, and run simulated trading — all in a secure interface.</p>
 
-        <div style="max-width:480px;margin:0 auto;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
           <button id="connectWalletBtn" class="btn btn-primary">Connect Wallet</button>
           <button id="loginIdBtn" class="btn btn-secondary">Login ID</button>
           <button id="getMobileAppBtn" class="btn btn-primary">Get Mobile App</button>
         </div>
 
-        <div style="display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
-          <div class="card" style="width:320px;">
-            <div style="font-weight:700">Market Overview</div>
-            <div id="landingMarket" class="small" style="margin-top:8px">Loading market summary…</div>
-          </div>
-
-          <div class="card" style="width:320px;">
-            <div style="font-weight:700">Top Coins</div>
-            <div id="landingTopCoins" style="margin-top:8px"></div>
-          </div>
-        </div>
-
-        <p class="small" style="margin-top:18px;max-width:760px;margin-left:auto;margin-right:auto">Trading involves risk. This demo showcases flow and simulation only.</p>
-      </div>
-    </section>
-
-    <!-- WALLET CONNECTOR PAGE -->
-    <section id="walletConnector" class="page hidden">
-      <div style="max-width:700px;margin:0 auto">
-        <div class="flex items-center justify-between mb-3">
-          <div>
-            <div style="font-weight:700">Wallet Connector</div>
-            <div class="small">Connect MetaMask, WalletConnect, TronLink or enter address manually</div>
-          </div>
-          <div><button class="btn btn-secondary" onclick="switchPage('landingPage')">Back</button></div>
-        </div>
-
-        <div class="card">
-          <div style="display:flex;gap:10px;flex-direction:column;">
-            <button id="connectMetaMask" class="btn btn-primary">MetaMask</button>
-            <button id="connectWalletConnect" class="btn btn-secondary">WalletConnect</button>
-            <button id="connectTron" class="btn btn-secondary">TronLink</button>
-            <div>
-              <label class="small">Manual address</label>
-              <div style="display:flex;gap:8px;margin-top:8px;">
-                <input id="manualInput" placeholder="Enter wallet address" />
-                <button id="manualConfirm" class="btn btn-primary">Confirm</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card small" style="margin-top:12px;">
-          <div style="font-weight:700">Status</div>
-          <div style="margin-top:8px">Connected: <span id="walletText">No</span></div>
-          <div>Wallet ID: <span id="walletIdDisplay">—</span></div>
-          <div style="margin-top:8px"><button id="showAccountBtn" class="btn btn-secondary">Show Account Details</button></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- HOME -->
-    <section id="home" class="page hidden">
-      <div style="max-width:920px;margin:0 auto">
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div class="small">Wallet ID</div>
-            <div id="walletId" style="font-weight:800">0000000000</div>
-          </div>
-          <div style="text-align:right">
-            <div class="small">Total Balance</div>
-            <div id="totalBalance" style="font-weight:800">$8,250.78</div>
-          </div>
-        </div>
-
-        <div style="display:flex;gap:10px;margin-top:12px;">
-          <button id="depositBtn" class="btn btn-primary flex-1">Deposit</button>
-          <button id="swapBtn" class="btn btn-secondary flex-1">Swap</button>
-          <button id="withdrawBtn" class="btn btn-primary flex-1">Withdraw</button>
-        </div>
-
-        <div class="card mt-4">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="display:flex;gap:12px;align-items:center;">
-              <img id="usdtLogo" src="" alt="USDT" class="w-10 h-10 rounded"/>
-              <div>
-                <div style="font-weight:700">Tether USD (USDT)</div>
-                <div id="usdtPrice" class="small">$0.00</div>
-              </div>
-            </div>
-            <div style="text-align:right">
-              <div class="small">Quick Actions</div>
-              <div style="margin-top:6px"><button id="transactionsBtn" class="btn btn-secondary small">Transactions</button> <button id="activityBtn" class="btn btn-secondary small">Activity</button></div>
-            </div>
-          </div>
-        </div>
-
-        <div style="margin-top:14px">
-          <div style="font-weight:700;margin-bottom:8px">Live Market Performance (BTC/USDT)</div>
-          <div id="tvchart" class="tv-container" style="height:320px;"></div>
-        </div>
-
-        <div class="grid-2 mt-4">
+        <div style="max-width:760px;margin:16px auto">
           <div class="card">
             <div style="display:flex;justify-content:space-between;align-items:center">
-              <div style="font-weight:700">Top Coins</div>
-              <button id="refreshMarkets" class="btn btn-secondary small">Refresh</button>
+              <div>
+                <div class="small muted">Wallet status</div>
+                <div id="walletText">Wallet not connected</div>
+              </div>
+              <div style="text-align:right">
+                <div class="small muted">Total Balance</div>
+                <div id="totalBalance" style="font-weight:700">$8,250.78</div>
+              </div>
             </div>
-            <div id="topCoinsList" style="margin-top:8px"></div>
           </div>
+        </div>
 
-          <div class="card">
-            <div style="font-weight:700">Gainers & Losers (24h)</div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <div id="gainers" style="flex:1"></div>
-              <div id="losers" style="flex:1"></div>
-            </div>
-          </div>
+        <div style="max-width:1100px;margin:20px auto">
+          <h3 style="margin-bottom:8px">Market Overview</h3>
+          <div id="landingMarket" class="card" style="min-height:120px"></div>
+
+          <h3 style="margin-top:18px">Top Coins</h3>
+          <div id="landingTopCoins" class="grid-2 mt-2"></div>
         </div>
 
       </div>
     </section>
 
-    <!-- MARKETS -->
-    <section id="markets" class="page hidden">
-      <div style="max-width:920px;margin:0 auto">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-weight:700">Markets</div>
-          <div class="small">Spot • Demo</div>
+    <!-- HOME PAGE -->
+    <section id="home" class="page hide">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="small muted">Wallet ID</div>
+          <div id="walletId" style="font-weight:700">—</div>
         </div>
+        <div class="right">
+          <div class="small muted">Main Balance</div>
+          <div id="mainBalance" style="font-weight:700">$8,250.78</div>
+          <div class="small muted">Trade Balance</div>
+          <div id="tradeBalance" style="font-weight:600">$0.00</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button id="depositBtn" class="btn btn-primary">Deposit</button>
+        <button id="transferBtn" class="btn btn-secondary">Transfer to Trade</button>
+        <button id="withdrawBtn" class="btn btn-primary">Withdraw</button>
+      </div>
+
+      <div style="margin-top:12px" class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center">
+            <div class="coin-img"><img id="usdtLogo" src="" alt="usdt" style="width:24px;height:24px;border-radius:6px"/></div>
+            <div>
+              <div style="font-weight:700">Tether USD (USDT)</div>
+              <div id="usdtPrice" class="small muted">$1.00</div>
+            </div>
+          </div>
+          <div class="small muted">BTC / USDT</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <h3>Live Market</h3>
+        <div class="tv-container" id="tvchart" style="height:320px"></div>
+      </div>
+
+      <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="card">
-          <div style="display:flex;gap:8px;margin-bottom:8px">
-            <input id="marketSearch" placeholder="Search markets e.g. BTC, ETH"/>
-            <button id="marketRefresh" class="btn btn-secondary">Refresh</button>
-          </div>
-          <div id="marketsList" style="max-height:60vh;overflow:auto"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SWAP -->
-    <section id="SwapPage" class="page hidden">
-      <div style="max-width:760px;margin:0 auto">
-        <div style="font-weight:700;margin-bottom:8px">Swap (Simulated)</div>
-        <div class="card">
-          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end">
-            <div>
-              <label class="small">From</label>
-              <select id="swapFromCoin"></select>
-            </div>
-            <div style="text-align:center">
-              <button id="swapSwitchBtn" class="btn btn-secondary">⇅</button>
-            </div>
-            <div>
-              <label class="small">To</label>
-              <select id="swapToCoin"></select>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <input id="swapAmount" placeholder="Amount" type="number" />
-            <button id="swapBtnSwapPage" class="btn btn-primary">Swap</button>
-          </div>
-          <div id="swapRate" class="small mt-2"></div>
-          <div id="swapResult" class="small mt-2"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TRADE -->
-    <section id="trade" class="page hidden">
-      <div style="max-width:920px;margin:0 auto">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-weight:700">Trading</div>
-          <div class="small">Simulation & MT5 panel</div>
-        </div>
-
-        <div class="card mt-3">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div>Total Trade Balance: <span id="tradeTotalBalance" style="font-weight:800">$0.00</span></div>
-            <div>Total Earnings: <span id="tradeTotalEarnings" style="font-weight:800">$0.00</span></div>
-          </div>
-
-          <div style="margin-top:10px">
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="tradeSymbol" style="width:220px">
-                <option>BINANCE:BTCUSDT</option>
-                <option>BINANCE:ETHUSDT</option>
-                <option>BINANCE:BNBUSDT</option>
-              </select>
-              <button id="loadSymbol" class="btn btn-secondary">Load Chart</button>
-              <button id="placeTradeBtn" class="btn btn-primary">Place Trade</button>
-              <button id="viewEarningsBtn" class="btn btn-secondary">Earnings</button>
-            </div>
-            <div id="tradeChart" class="tv-container" style="height:320px;margin-top:12px"></div>
-            <div id="tradeActiveTradesList" style="margin-top:12px"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FUTURES -->
-    <section id="futures" class="page hidden">
-      <div style="max-width:920px;margin:0 auto">
-        <div style="font-weight:700">Futures (Demo)</div>
-        <div id="futuresChart" class="tv-container" style="height:420px;margin-top:12px"></div>
-        <div class="card mt-4" id="futuresList"></div>
-      </div>
-    </section>
-
-    <!-- WALLETS -->
-    <section id="wallets" class="page hidden">
-      <div style="max-width:760px;margin:0 auto">
-        <div style="font-weight:700">Wallets</div>
-
-        <div class="card mt-3">
-          <div style="display:flex;justify-content:space-between">
-            <div>
-              <div class="small">Wallet ID</div>
-              <div id="walletId2" style="font-weight:700">0000000000</div>
-            </div>
-            <div style="text-align:right">
-              <div class="small">Total Balance</div>
-              <div id="totalBalance2" style="font-weight:700">$8,250.78</div>
-            </div>
-          </div>
-
-          <div style="margin-top:12px">
-            <div style="font-weight:700">Holdings</div>
-            <div id="walletHoldings" style="margin-top:8px"></div>
-          </div>
-
-          <div style="margin-top:12px">
-            <div style="font-weight:700">Recent Transactions</div>
-            <div id="recentTx" class="small" style="margin-top:8px">No transactions — demo mode.</div>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- SETTINGS -->
-    <section id="settingsPage" class="page hidden">
-      <div style="max-width:760px;margin:0 auto">
-        <div style="font-weight:700">Settings</div>
-        <div class="card mt-3">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>Enable Notifications</div>
-            <label style="display:flex;gap:8px;align-items:center">
-              <input type="checkbox" id="notifToggle"/>
-              <span id="notifToggleLabel" class="small"></span>
-            </label>
+            <div style="font-weight:700">Top Coins</div>
+            <button id="refreshMarkets" class="btn btn-secondary">Refresh</button>
           </div>
+          <div id="topCoinsList" style="margin-top:8px"></div>
+        </div>
 
-          <div style="margin-top:10px">
-            <div>Theme</div>
-            <select id="themeSelect" style="margin-top:6px;width:180px">
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">Gainers & Losers</div>
+            <div class="small muted">24h</div>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div id="gainers"></div><div id="losers"></div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-          <div style="margin-top:10px">
-            <button id="closeAccountBtn" class="btn btn-primary">Close Account (2FA required)</button>
+    <!-- MARKETS PAGE -->
+    <section id="markets" class="page hide">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2>Markets</h2>
+        <div class="small muted">Spot</div>
+      </div>
+      <div class="card mt-2">
+        <div style="display:flex;gap:8px">
+          <input id="marketSearch" class="input" placeholder="Search (e.g., bitcoin, eth)" />
+          <button id="marketRefresh" class="btn btn-secondary">Refresh</button>
+        </div>
+        <div id="marketsList" style="margin-top:12px;max-height:56vh;overflow:auto"></div>
+      </div>
+    </section>
+
+    <!-- SWAP PAGE -->
+    <section id="SwapPage" class="page hide">
+      <h2>Swap (simulated)</h2>
+      <div class="card">
+        <div style="display:flex;gap:8px">
+          <select id="swapFromCoin" class="input"></select>
+          <button id="swapSwitchBtn" class="btn btn-secondary">⇅</button>
+          <select id="swapToCoin" class="input"></select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="swapAmount" class="input" placeholder="Amount" />
+          <button id="swapBtnSwapPage" class="btn btn-primary">Swap</button>
+        </div>
+        <div id="swapRate" class="small muted mt-2"></div>
+        <div id="swapResult" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <!-- TRADE PAGE -->
+    <section id="trade" class="page hide">
+      <h2>Trade</h2>
+      <div id="mt5DashboardSection"></div>
+
+      <div class="card mt-2">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Trade Account</div>
+          <div class="small muted">Use Transfer on Home to add funds</div>
+        </div>
+
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <select id="tradeSymbol" class="input" style="max-width:220px">
+            <option value="BINANCE:BTCUSDT">BTC/USDT</option>
+            <option value="BINANCE:ETHUSDT">ETH/USDT</option>
+            <option value="BINANCE:BNBUSDT">BNB/USDT</option>
+          </select>
+          <button id="loadSymbol" class="btn btn-secondary">Load Chart</button>
+        </div>
+
+        <div id="tradeChart" class="tv-container" style="height:320px;margin-top:12px"></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button id="placeTradeBtn" class="btn btn-primary">Place Trade (All funds)</button>
+          <button id="viewEarningsBtn" class="btn btn-secondary">View Earnings</button>
+        </div>
+
+        <div id="tradeActiveTradesList" class="small muted mt-3">No active trades</div>
+      </div>
+    </section>
+
+    <!-- FUTURES PAGE -->
+    <section id="futures" class="page hide">
+      <h2>Futures (simulated)</h2>
+      <div class="tv-container" id="futuresChart" style="height:420px;margin-top:12px"></div>
+      <div class="card mt-2">
+        <div id="futuresList" class="small muted">No futures data — demo mode.</div>
+      </div>
+    </section>
+
+    <!-- WALLETS PAGE -->
+    <section id="wallets" class="page hide">
+      <h2>Wallets</h2>
+      <div class="card mt-2">
+        <div style="display:flex;justify-content:space-between">
+          <div>
+            <div class="small muted">Wallet ID</div>
+            <div id="walletId2" style="font-weight:700">—</div>
           </div>
+          <div class="right">
+            <div class="small muted">Main Balance</div>
+            <div id="totalBalance2" style="font-weight:700">$8,250.78</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="font-weight-700">Holdings</div>
+          <div id="walletHoldings" class="small muted mt-2">No holdings</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS PAGE -->
+    <section id="settingsPage" class="page hide">
+      <h2>Settings</h2>
+      <div class="card mt-2">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>Enable Notifications</div>
+          <label style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="notifToggle" />
+            <span class="small muted" id="notifToggleLabel">Off</span>
+          </label>
+        </div>
+
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <div>Theme</div>
+          <select id="themeSelect" class="input" style="max-width:160px">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+
+        <div style="margin-top:12px">
+          <button id="closeAccountBtn" class="btn btn-primary">Close Account (2FA required)</button>
         </div>
       </div>
     </section>
 
     <!-- SUPPORT -->
-    <section id="supportPage" class="page hidden">
-      <div style="max-width:760px;margin:0 auto">
-        <div style="font-weight:700">Support</div>
-        <div class="card mt-3">
-          <div style="font-weight:700">Live Support (AI Demo)</div>
-          <div id="supportChatBox" style="height:180px;overflow:auto;margin-top:8px" class="small"></div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="supportUserMsg" placeholder="Type your message" />
-            <button id="supportSendBtn" class="btn btn-primary">Send</button>
-          </div>
+    <section id="supportPage" class="page hide">
+      <h2>Support</h2>
+      <div class="card mt-2">
+        <div class="font-weight-700">FAQs</div>
+        <div class="small muted mt-2">
+          <div><b>How to connect?</b> Use Connect Wallet on landing or header.</div>
+          <div class="mt-1"><b>How to add funds?</b> Use Transfer to move funds to trade account.</div>
+        </div>
+      </div>
+
+      <div class="card mt-2">
+        <div style="font-weight:700">Live Support AI Bot</div>
+        <div id="supportChatBox" style="height:180px;overflow:auto;background:#0b0d10;padding:8px;border-radius:8px;margin-top:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="supportUserMsg" class="input" placeholder="Type message..." />
+          <button id="supportSendBtn" class="btn btn-primary">Send</button>
         </div>
       </div>
     </section>
 
     <!-- NOTIFICATIONS -->
-    <section id="notifPage" class="page hidden">
-      <div style="max-width:760px;margin:0 auto">
-        <div style="font-weight:700">Notifications</div>
-        <div class="card mt-3">
-          <div style="font-weight:700">Recent</div>
-          <div id="notifList" style="margin-top:8px" class="small"></div>
-        </div>
-      </div>
+    <section id="notifPage" class="page hide">
+      <h2>Notifications</h2>
+      <div id="notifList" class="card mt-2 small muted">No notifications yet.</div>
     </section>
-
-    <!-- DEPOSIT / WITHDRAW MODALS (kept as modals to avoid page clutter) -->
-    <!-- Deposit modal -->
-    <div id="depositModal" class="modal hide" aria-hidden="true">
-      <div class="modal-content">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-weight:700">Deposit</div>
-          <button id="closeDepositModal" class="btn btn-secondary">✕</button>
-        </div>
-        <div style="margin-top:10px">
-          <input id="depositSearch" placeholder="Search coin..." />
-          <div id="depositCoinList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Withdraw sheet -->
-    <div id="withdrawSheet" class="sheet hide">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:700">Withdraw</div>
-        <button id="closeWithdrawSheet" class="btn btn-secondary">Cancel</button>
-      </div>
-      <div style="margin-top:10px">
-        <button id="onChainTransferBtn" class="btn btn-primary w-full">On-Chain Transfer</button>
-        <button id="userAccIDBtn" class="btn btn-secondary w-full mt-2">User Account ID</button>
-      </div>
-    </div>
-
-    <!-- Withdraw detail modal -->
-    <div id="withdrawDetailModal" class="modal hide">
-      <div class="modal-content">
-        <div style="font-weight:700">Withdraw Details</div>
-        <div style="margin-top:8px">
-          <label class="small">Address</label>
-          <input id="wdAddr" placeholder="Destination address" />
-          <button id="fillFromWallet" class="btn btn-secondary small mt-2">Fill From Connected Wallet</button>
-        </div>
-        <div style="margin-top:8px">
-          <label class="small">Network</label>
-          <select id="wdNetwork">
-            <option>Ethereum</option>
-            <option>Bitcoin</option>
-            <option>BNB</option>
-            <option>Tron</option>
-          </select>
-        </div>
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-          <input id="wdAmt" type="number" placeholder="Amount" style="flex:1" />
-          <button id="wdMaxBtn" class="btn btn-secondary">Max</button>
-        </div>
-        <div style="margin-top:10px">
-          <button id="wdSubmitBtn" class="btn btn-primary w-full">Withdraw</button>
-          <button id="closeWithdrawDetail" class="btn btn-secondary w-full mt-2">Cancel</button>
-          <div id="wdDetailMsg" class="small mt-2" style="color:#ff6b6b"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Withdraw code modal -->
-    <div id="withdrawCodeModal" class="modal hide">
-      <div class="modal-content">
-        <div style="font-weight:700">Enter Validation Code</div>
-        <div style="margin-top:8px">
-          <input id="wdCodeInput" placeholder="6-digit code" maxlength="6" />
-          <div style="margin-top:8px">
-            <button id="wdCodeSubmit" class="btn btn-primary w-full">Submit</button>
-            <button id="closeWithdrawCode" class="btn btn-secondary w-full mt-2">Cancel</button>
-            <div id="wdCodeMsg" class="small mt-2"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Account modal -->
-    <div id="accountModal" class="modal hide">
-      <div class="modal-content">
-        <div style="font-weight:700">Account Details</div>
-        <div style="margin-top:8px">
-          <div class="small">Address</div>
-          <div id="accModalAddr" class="small" style="word-break:break-all"></div>
-          <div class="small" style="margin-top:6px">Account ID</div>
-          <div id="accModalID" class="small"></div>
-          <div class="small" style="margin-top:6px">Balance</div>
-          <div id="accModalBal" class="small"></div>
-        </div>
-        <div style="margin-top:12px">
-          <button id="secureAccBtn" class="btn btn-secondary w-full">Secure Account (2FA)</button>
-          <button id="closeAccModal" class="btn btn-primary w-full mt-2">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Auth modal -->
-    <div id="authModal" class="modal hide">
-      <div class="modal-content">
-        <div style="font-weight:700">Google Authenticator (2FA)</div>
-        <div id="authAccID" class="small mt-2"></div>
-        <canvas id="gaQR" style="display:block;margin:8px auto;"></canvas>
-        <div id="gaSecret" class="small break-all mt-1"></div>
-        <input id="gaCode" placeholder="6-digit code" maxlength="6" style="margin-top:8px"/>
-        <div style="margin-top:8px">
-          <button id="gaVerifyBtn" class="btn btn-primary w-full">Verify</button>
-          <button id="gaCloseBtn" class="btn btn-secondary w-full mt-2">Close</button>
-          <div id="gaMsg" class="small mt-2"></div>
-        </div>
-      </div>
-    </div>
 
   </main>
 
   <!-- FOOTER NAV -->
-  <footer class="fixed-bottom">
-    <nav style="max-width:920px;margin:0 auto;display:flex;justify-content:space-between;gap:6px;padding:8px;">
-      <button class="tab btn btn-secondary" data-target="home">Home</button>
-      <button class="tab btn btn-secondary" data-target="markets">Markets</button>
-      <button class="tab btn btn-secondary" data-target="trade">Trade</button>
-      <button class="tab btn btn-secondary" data-target="futures">Futures</button>
-      <button class="tab btn btn-secondary" data-target="wallets">Wallets</button>
+  <footer class="fixed bottom-0 left:0 right:0" style="background:#060708;padding:6px 0;box-shadow:0 -6px 24px rgba(0,0,0,0.6)">
+    <nav class="container footer-nav" style="display:flex;gap:6px;align-items:center">
+      <button class="tab tab-home" data-target="home" aria-label="Home">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" stroke="#cfd3d8"/></svg>
+        <span class="small muted">Home</span>
+      </button>
+      <button class="tab tab-markets" data-target="markets" aria-label="Markets">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M3 3v18h18" stroke="#cfd3d8"/></svg>
+        <span class="small muted">Markets</span>
+      </button>
+      <button class="tab tab-trade" data-target="trade" aria-label="Trade">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M3 12h18M12 3v18" stroke="#cfd3d8"/></svg>
+        <span class="small muted">Trade</span>
+      </button>
+      <button class="tab tab-futures" data-target="futures" aria-label="Futures">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M12 2v20" stroke="#cfd3d8"/></svg>
+        <span class="small muted">Futures</span>
+      </button>
+      <button class="tab tab-wallets" data-target="wallets" aria-label="Wallets">
+        <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="2" stroke="#cfd3d8"/></svg>
+        <span class="small muted">Wallets</span>
+      </button>
     </nav>
   </footer>
 
-  <!-- SERVICE WORKER / PWA -->
+  <!-- Inline service-worker code will be registered from this page -->
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => { navigator.serviceWorker?.register('service-worker.js').catch(()=>{}); });
-    }
-  </script>
-
-  <!-- ========= MERGED APPLICATION JS ========= -->
-  <script>
-  /* ---------------------
-     CONFIG & CONSTANTS
-     --------------------- */
-  const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+  /* ---------- App constants and state ---------- */
   const TOTAL_BALANCE = 8250.78;
-  const TRADE_RETURNS_RATE = 0.001; // daily demo
-  const TRADE_DURATIONS = [1,3,6,12];
-  const depositAddresses = {
-    "Bitcoin":   { addr: "bc1qv4fffwt8ux3k33n2dms5cdvuh6suc0gtfevxzu", label: "Bitcoin [BTC] Native" },
-    "Ethereum":  { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "Ethereum [ERC-20]" },
-    "BNB":       { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "BNB Smart Chain [BEP20]" },
-    "Tron":      { addr: "TSt7yoNwGYRbtMMfkSAHE6dPs1cd9rxcco", label: "Tron [TRC-20]" }
+  const USDT_DECIMALS = 6;
+  const LS = {
+    user: "autoTrade_user",
+    walletMap: "autoTrade_walletMap",
+    transactions: "autoTrade_transactions",
+    withdraws: "autoTrade_withdrawals",
+    withdrawSusp: "autoTrade_withdrawSusp",
+    trades: "autoTrade_trades",
+    notif: "autoTrade_notif",
+    coinCache: "autoTrade_coinCache",
+    lastPage: "autoTrade_lastPage",
+    tradingSimulation: "tradingSimulation"
   };
-  const LS = { user: "autoTrade_user", walletMap: "autoTrade_walletMap", transactions: "autoTrade_transactions",
-    withdraws:"autoTrade_withdrawals", withdrawSusp:"autoTrade_withdrawSusp", twofa:"autoTrade_2fa", twofaStatus:"autoTrade_2faStatus",
-    notif:"autoTrade_notif", notifMsgs:"autoTrade_notifMsgs", tradingSimulation:"tradingSimulation", landingFav:"autoTrade_landingFav_v1",
-    tradeState:"autoTrade_tradeState", mainPortfolio:"autoTrade_mainPortfolio"
-  };
-  const validCodes = ["483921","175064","902718","634285","217509","856430","490127","731694","562803","308417","941256","128374","675820","203519","487960","819432","356701","740528","612947","098135","573864","284691","160738","495260","837514","021693","658407","794135","320586","946172"];
-  let sendAttempts = 0;
 
-  /* ---------------------
-     UTILITIES
-     --------------------- */
-  function $(s){ return document.querySelector(s); }
-  function $all(s){ return Array.from(document.querySelectorAll(s)); }
-  const sleep = ms => new Promise(r=>setTimeout(r,ms));
-  function fmtUsd(n){ return typeof n === 'number' ? n.toLocaleString('en-US',{style:'currency',currency:'USD'}) : n; }
-  function now(){ return Math.floor(Date.now()/1000); }
-  function saveLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
-  function getLS(k,fb){ try{ const t=localStorage.getItem(k); return t?JSON.parse(t):fb; }catch{return fb;} }
-  function delLS(k){ localStorage.removeItem(k); }
-  function show(el){ if(el) el.classList.remove('hide'); }
-  function hide(el){ if(el) el.classList.add('hide'); }
-  function shortAddr(addr){ if(!addr) return ''; if(addr.startsWith('0x')) return addr.slice(0,6)+'...'+addr.slice(-4); if(addr.length>12) return addr.slice(0,5)+'...'+addr.slice(-4); return addr; }
-
-  /* ---------------------
-     APP STATE
-     --------------------- */
   let app = {
-    user: getLS(LS.user, null),
-    walletMap: getLS(LS.walletMap,{ }),
-    transactions: getLS(LS.transactions,[]),
-    withdrawals: getLS(LS.withdraws,[]),
-    withdrawSusp: getLS(LS.withdrawSusp,{}),
-    twofa: getLS(LS.twofa,{}),
-    twofaStatus: getLS(LS.twofaStatus,{}),
-    notif: getLS(LS.notif,{enabled:false}),
-    notifMsgs: getLS(LS.notifMsgs,[]),
-    coinCache: []
+    provider: null,
+    web3Provider: null,
+    signer: null,
+    address: null,
+    chainId: null,
+    mainBalance: TOTAL_BALANCE,
+    tradeBalance: 0,
+    marketTop: [],
+    coinCache: [],
+    isConnected: false
   };
 
-  // trade state
-  function getTradeState(){ return getLS(LS.tradeState, { totalBalance: TOTAL_BALANCE, totalEarnings:0, totalReturns:0, trades:[], lastSymbol:'BINANCE:BTCUSDT' }); }
-  function setTradeState(s){ saveLS(LS.tradeState, s); }
-  function getMainPortfolio(){ return getLS(LS.mainPortfolio, { totalPortfolio: TOTAL_BALANCE }); }
-  function setMainPortfolio(o){ saveLS(LS.mainPortfolio, o); }
+  /* ---------- Helpers ---------- */
+  function $(sel){ return document.querySelector(sel); }
+  function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
+  function fmtUsd(n){ return typeof n==="number" ? n.toLocaleString('en-US',{style:'currency',currency:'USD'}) : n; }
+  function saveLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+  function getLS(k, fallback=null){ try{const v = JSON.parse(localStorage.getItem(k)); return v===null?fallback:v||fallback;}catch(e){return fallback;} }
+  function setLastPage(page){ saveLS(LS.lastPage, page); }
+  function getLastPage(){ return getLS(LS.lastPage, null); }
+  function notify(msg, timeout=3000){ const el = $('#notifPop'); if(!el) return; el.textContent = msg; el.classList.remove('hide'); setTimeout(()=>el.classList.add('hide'), timeout); }
 
-  /* ---------------------
-     PAGE NAV
-     --------------------- */
-  function switchPage(id){
-    $all('.page').forEach(p=>p.classList.add('hidden'));
-    const tgt = document.getElementById(id);
-    if(tgt) tgt.classList.remove('hidden');
-    // page init hooks
-    if(id==='home'){ loadUsdt(); loadMarkets(); initializeTradingView(); renderTradeMainSection(); }
-    if(id==='landingPage'){ initLandingPage(); }
-    if(id==='markets'){ loadMarkets(); }
-    if(id==='walletConnector'){ /* nothing extra */ }
+  /* ---------- SPA page switching ---------- */
+  function switchPage(pageId, skipPersist=false){
+    $all('.page').forEach(p=>p.classList.add('hide'));
+    const target = document.getElementById(pageId);
+    if(target) target.classList.remove('hide');
+    if(!skipPersist) setLastPage(pageId);
+    window.scrollTo(0,0);
+    // wire some page-specific actions
+    if(pageId === 'home') loadUsdt();
+    if(pageId === 'markets') loadMarkets();
+    if(pageId === 'landingPage') loadLanding();
   }
-  document.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-target]');
-    if(!el) return;
-    const t = el.dataset.target;
-    if(t) { e.preventDefault(); switchPage(t); }
-  });
-  // wire footer tabs
-  $all('.tab').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.target)));
+  // footer/tab wiring
+  $all('.tab').forEach(t=>t.addEventListener('click',()=>{ const tgt=t.dataset.target; if(tgt) switchPage(tgt); $all('.tab').forEach(x=>x.classList.remove('tab-active')); t.classList.add('tab-active'); }));
 
-  /* ---------------------
-     COINGECKO: Shared helpers
-     --------------------- */
-  async function cgFetch(path, opts){
-    const url = COINGECKO_BASE + path;
-    try {
-      const resp = await fetch(url);
-      if(!resp.ok) throw new Error('CG error');
-      return await resp.json();
-    } catch(err){ console.warn('cgFetch failed', err); return null; }
-  }
-
-  /* ---------------------
-     MARKETS & USDT
-     --------------------- */
-  async function loadMarkets(){
-    try {
-      const data = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h');
-      if(!data) return;
-      // top coins (home)
-      if($('#topCoinsList')){
-        $('#topCoinsList').innerHTML = data.slice(0,8).map(c=>`
-          <div class="flex items-center justify-between py-2">
-            <div class="flex items-center gap-3">
-              <img src="${c.image}" class="w-6 h-6 rounded" />
-              <div class="text-sm"><div style="font-weight:600">${c.name}</div><div class="small">(${c.symbol.toUpperCase()})</div></div>
-            </div>
-            <div class="text-right">
-              <div style="font-weight:700">${fmtUsd(c.current_price)}</div>
-              <div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div>
-            </div>
-          </div>`).join('');
+  /* ---------- Web3Modal + Ethers setup ---------- */
+  let web3Modal;
+  let providerOptions = {
+    walletconnect: {
+      package: window.WalletConnectProvider?.default || window.WalletConnectProvider,
+      options: {
+        rpc: {
+          // public fallback rpc endpoints; replace with your own provider endpoints for reliability in production
+          1: "https://cloudflare-eth.com",
+          56: "https://bsc-dataseed.binance.org/",
+          137: "https://rpc-mainnet.maticvigil.com/"
+        }
       }
-      // markets page
-      if($('#marketsList')){
-        $('#marketsList').innerHTML = data.map(c=>`
-          <div class="flex items-center justify-between p-2 border-b" data-coin="${c.id}" data-target="marketDetail">
-            <div class="flex items-center gap-3">
-              <img src="${c.image}" class="w-6 h-6 rounded" />
-              <div class="text-sm"><div style="font-weight:600">${c.name}</div><div class="small">${c.symbol.toUpperCase()}</div></div>
-            </div>
-            <div class="text-right">
-              <div style="font-weight:700">${fmtUsd(c.current_price)}</div>
-              <div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div>
-            </div>
-          </div>`).join('');
-      }
-      // gainers / losers
-      const sorted = data.slice().sort((a,b)=>(b.price_change_percentage_24h||0)-(a.price_change_percentage_24h||0));
-      if($('#gainers')) $('#gainers').innerHTML = sorted.slice(0,4).map(c=>`<div class="small">${c.symbol.toUpperCase()} — ${fmtUsd(c.current_price)} <span class="text-green-400">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
-      if($('#losers')) $('#losers').innerHTML = sorted.slice(-4).reverse().map(c=>`<div class="small">${c.symbol.toUpperCase()} — ${fmtUsd(c.current_price)} <span class="text-red-400">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
-    } catch(e){ console.warn('loadMarkets failed', e); }
+    }
+  };
+
+  function initWeb3Modal(){
+    web3Modal = new window.Web3Modal.default({
+      cacheProvider: true,
+      providerOptions
+    });
   }
+
+  async function connectWallet(){
+    try{
+      const provider = await web3Modal.connect();
+      app.provider = provider;
+      app.web3Provider = new ethers.providers.Web3Provider(provider);
+      app.signer = app.web3Provider.getSigner();
+      const addr = await app.signer.getAddress();
+      app.address = addr;
+      app.chainId = (await app.web3Provider.getNetwork()).chainId;
+      app.isConnected = true;
+      saveLS(LS.user, { address: app.address, chainId: app.chainId });
+      // handle provider events
+      provider.on && provider.on("accountsChanged", (accounts)=>{ if(accounts && accounts.length) { app.address = accounts[0]; saveLS(LS.user,{address:app.address,chainId:app.chainId}); updateUIOnConnect(); } else { disconnectWallet(); } });
+      provider.on && provider.on("chainChanged", (chainId)=>{ app.chainId = parseInt(chainId, 16); saveLS(LS.user,{address:app.address,chainId:app.chainId}); updateUIOnConnect(); });
+      provider.on && provider.on("disconnect", ()=>{ disconnectWallet(); });
+      updateUIOnConnect();
+      notify("Wallet connected");
+      return true;
+    }catch(err){
+      console.warn("connectWallet error", err);
+      notify("Wallet connection failed");
+      return false;
+    }
+  }
+
+  async function tryAutoConnect(){
+    initWeb3Modal();
+    if(web3Modal?.cachedProvider){
+      await connectWallet();
+    } else {
+      // check localStorage saved entry (fallback)
+      const u = getLS(LS.user, null);
+      if(u && u.address){
+        app.address = u.address;
+        app.chainId = u.chainId || null;
+        app.isConnected = true;
+        updateUIOnConnect();
+      }
+    }
+  }
+
+  function disconnectWallet(){
+    if(web3Modal){
+      web3Modal.clearCachedProvider && web3Modal.clearCachedProvider();
+    }
+    // try to disconnect provider if it supports close/killSession
+    if(app.provider && app.provider.disconnect) try{ app.provider.disconnect(); }catch(e){}
+    app.provider = null; app.web3Provider = null; app.signer = null; app.address = null; app.chainId = null; app.isConnected=false;
+    localStorage.removeItem(LS.user);
+    notify("Disconnected");
+    updateUIOnConnect();
+    // Keep user on landing page
+    switchPage('landingPage');
+  }
+
+  /* ---------- UI update on connect ---------- */
+  function updateUIOnConnect(){
+    if(app.address){
+      $('#walletText').textContent = "Connected: " + shortAddr(app.address);
+      $('#walletId').textContent = shortAddr(app.address);
+      $('#walletId2').textContent = shortAddr(app.address);
+      $('#accModalAddr').textContent = app.address;
+      $('#accModalId').textContent = app.address;
+      $('#disconnectBtn').classList.remove('hide');
+      $('#connectWalletBtn').textContent = "Wallet connected";
+    } else {
+      $('#walletText').textContent = "Wallet not connected";
+      $('#walletId').textContent = "—";
+      $('#walletId2').textContent = "—";
+      $('#accModalAddr').textContent = "";
+      $('#accModalId').textContent = "";
+      $('#disconnectBtn').classList.add('hide');
+      $('#connectWalletBtn').textContent = "Connect Wallet";
+    }
+    // balances
+    $('#mainBalance').textContent = fmtUsd(app.mainBalance);
+    $('#tradeBalance').textContent = fmtUsd(app.tradeBalance);
+    $('#totalBalance').textContent = fmtUsd(app.mainBalance);
+    $('#totalBalance2').textContent = fmtUsd(app.mainBalance);
+    $('#accModalBal').textContent = fmtUsd(app.mainBalance);
+    // show/hide wallet modal if open
+  }
+
+  function shortAddr(a){
+    if(!a) return "";
+    if(a.startsWith("0x")) return a.slice(0,6)+"..."+a.slice(-4);
+    return a.slice(0,6)+"..."+a.slice(-4);
+  }
+
+  /* ---------- CoinGecko Market data ---------- */
+  const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
 
   async function loadUsdt(){
-    try {
-      const tg = await cgFetch('/coins/tether');
-      const market = await cgFetch('/coins/markets?vs_currency=usd&ids=tether');
-      if(tg && $('#usdtLogo')) $('#usdtLogo').src = tg.image.thumb;
-      if(market && market[0] && $('#usdtPrice')) $('#usdtPrice').innerText = fmtUsd(market[0].current_price);
-      if($('#walletHoldings')) $('#walletHoldings').innerHTML = `<div class="flex items-center justify-between"><div class="flex items-center gap-3"><img src="${tg.image.thumb}" class="w-6 h-6 rounded"><div><div style="font-weight:700">Tether USD (USDT)</div><div class="small">Balance</div></div></div><div style="font-weight:700">${fmtUsd(TOTAL_BALANCE)}</div></div>`;
-    } catch(e){ console.warn('loadUsdt failed', e); }
+    try{
+      const res = await fetch(`${COINGECKO_BASE}/coins/tether`);
+      const data = await res.json();
+      if(data?.image?.thumb) $('#usdtLogo').src = data.image.thumb;
+      const markets = await fetch(`${COINGECKO_BASE}/coins/markets?vs_currency=usd&ids=tether`).then(r=>r.json());
+      if(markets && markets[0] && $('#usdtPrice')) $('#usdtPrice').textContent = fmtUsd(markets[0].current_price);
+    }catch(e){ console.warn("USDT load failed", e); }
   }
 
-  /* ---------------------
-     TRADINGVIEW
-     --------------------- */
+  async function loadMarkets(){
+    try{
+      const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h`;
+      const data = await fetch(url).then(r=>r.json());
+      app.marketTop = data;
+      // top coins on home
+      if($('#topCoinsList')) $('#topCoinsList').innerHTML = data.slice(0,8).map(c=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.02)"><div style="display:flex;gap:8px;align-items:center"><img src="${c.image}" style="width:28px;height:28px;border-radius:6px"/><div><div style="font-weight:600">${c.name}</div><div class="small muted">${c.symbol.toUpperCase()}</div></div></div><div class="right">${fmtUsd(c.current_price)}<div class="${c.price_change_percentage_24h>=0?'small' : 'small'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div></div></div>`).join('');
+      // landing top coins
+      if($('#landingTopCoins')) {
+        const el = $('#landingTopCoins'); el.innerHTML = "";
+        data.slice(0,8).forEach(c=>{
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.alignItems='center';
+          div.innerHTML = `<div style="display:flex;gap:10px;align-items:center"><img src="${c.image}" style="width:36px;height:36px;border-radius:8px"/><div><div style="font-weight:700">${c.name}</div><div class="small muted">${c.symbol.toUpperCase()}</div></div></div><div class="right">${fmtUsd(c.current_price)}<div class="small muted">${(c.price_change_percentage_24h||0).toFixed(2)}%</div></div>`;
+          el.appendChild(div);
+        });
+      }
+      // gainers & losers
+      const sorted = data.slice().sort((a,b)=>(b.price_change_percentage_24h||0)-(a.price_change_percentage_24h||0));
+      if($('#gainers')) $('#gainers').innerHTML = sorted.slice(0,4).map(c=>`<div class="small"><strong>${c.symbol.toUpperCase()}</strong> ${fmtUsd(c.current_price)} <span class="muted">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
+      if($('#losers')) $('#losers').innerHTML = sorted.slice(-4).reverse().map(c=>`<div class="small"><strong>${c.symbol.toUpperCase()}</strong> ${fmtUsd(c.current_price)} <span class="muted">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
+    }catch(e){ console.warn("loadMarkets error", e); }
+  }
+
+  async function loadLanding(){
+    // reuse loadMarkets and show a summary
+    await loadMarkets();
+    if(app.marketTop && $('#landingMarket')){
+      const top = app.marketTop.slice(0,5);
+      $('#landingMarket').innerHTML = `<div style="display:flex;gap:12px;align-items:center">${top.map(c=>`<div style="display:flex;flex-direction:column;align-items:center"><img src="${c.image}" style="width:36px;height:36px;border-radius:8px"/><div class="small muted">${c.symbol.toUpperCase()}</div><div>${fmtUsd(c.current_price)}</div></div>`).join('')}</div>`;
+    }
+  }
+
+  /* ---------- TradingView chart init ---------- */
   function initializeTradingView(){
-    if(typeof TradingView === 'undefined') return;
-    const el = document.getElementById('tvchart');
-    if(!el) return;
-    try {
-      new TradingView.widget({ width:'100%', height:320, symbol:'BINANCE:BTCUSDT', interval:'60', container_id:'tvchart', theme:'dark', locale:'en' });
-    } catch(e){ console.warn('TradingView init fail', e); }
+    try{
+      if(typeof TradingView === 'undefined') return;
+      const el = document.getElementById('tvchart');
+      if(!el) return;
+      new TradingView.widget({
+        width: "100%",
+        height: 320,
+        symbol: "BINANCE:BTCUSDT",
+        interval: "D",
+        timezone: "Etc/UTC",
+        theme: "dark",
+        style: "1",
+        locale: "en",
+        container_id: "tvchart"
+      });
+    }catch(e){ console.warn("TradingView init failed", e); }
   }
+
   function embedTradeChart(symbol, containerId='tradeChart'){
-    if(typeof TradingView==='undefined') return;
-    const el = document.getElementById(containerId);
-    if(!el) return;
-    el.innerHTML = '';
-    const id = containerId + '_embed';
-    const div = document.createElement('div'); div.id=id; div.style.height='320px'; el.appendChild(div);
-    try {
-      new TradingView.widget({ container_id:id, autosize:true, symbol, interval:'D', timezone:'Etc/UTC', theme:'dark', locale:'en' });
-    } catch(e){ console.warn('embed chart failed', e); }
+    try{
+      if(typeof TradingView === 'undefined') return;
+      const el = document.getElementById(containerId);
+      if(!el) return;
+      el.innerHTML = '';
+      const wrapper = document.createElement('div'); wrapper.id = 'tvwidget_' + containerId; wrapper.style.height = '340px';
+      el.appendChild(wrapper);
+      new TradingView.widget({
+        container_id: wrapper.id,
+        autosize: true,
+        symbol,
+        interval: "D",
+        timezone: "Etc/UTC",
+        theme: "dark",
+        style: "1",
+        locale: "en"
+      });
+    }catch(e){ console.warn("embedTradeChart err", e); }
   }
 
-  /* ---------------------
-     TRADING SIMULATION & UI
-     --------------------- */
-  let tradingSimulationInterval = null;
-  function calculateTradingReturns() {
-    // for pages that include calculators — omitted UI wiring here (keep function ready)
-  }
-  function startTradingSimulation(){}
-  function updateTradingSimulation(){}
-  function stopTradingSimulation(){}
-  function transferToTradingSimulationAccount(){}
-
-  function renderMT5Dashboard(){
-    const state = getTradeState();
-    const totalInvested = state.trades.reduce((a,t)=>a+(t.active? (t.amount||0):0),0);
-    const balance = (state.totalBalance||0) + (state.totalEarnings||0);
-    const equity = balance + (state.totalReturns||0);
-    if($('#mt5DashboardSection')) $('#mt5DashboardSection').innerHTML = `<div style="font-weight:700">Balance: ${fmtUsd(balance)} • Equity: ${fmtUsd(equity)} • Free: ${fmtUsd(balance-totalInvested)}</div>`;
-  }
-  function renderTradeMainSection(){
-    const state = getTradeState();
-    if($('#tradeTotalBalance')) $('#tradeTotalBalance').textContent = fmtUsd(state.totalBalance);
-    if($('#tradeTotalEarnings')) $('#tradeTotalEarnings').textContent = fmtUsd(state.totalEarnings);
-    renderMT5Dashboard();
-    if(state.lastSymbol) embedTradeChart(state.lastSymbol,'tradeChart');
-    // active trades
-    const html = state.trades.length ? state.trades.map(t=>`<div class="card small mt-2">Asset: ${t.symbol} • Amount: ${fmtUsd(t.amount)}</div>`).join('') : '<div class="small mt-2">No active trades</div>';
-    if($('#tradeActiveTradesList')) $('#tradeActiveTradesList').innerHTML = html;
+  /* ---------- Trade logic: Transfer only ---------- */
+  function transferToTrade(amount){
+    if(isNaN(amount) || amount <= 0) return alert("Enter a valid amount");
+    if(amount > app.mainBalance) return alert("Insufficient main balance");
+    app.mainBalance -= amount;
+    app.tradeBalance += amount;
+    saveState();
+    updateUIOnConnect();
+    notify(`Transferred ${fmtUsd(amount)} to trade account`);
   }
 
-  /* ---------------------
-     WALLET / LOGIN / 2FA / CONNECT UI
-     --------------------- */
-  // assign account id helper
-  const walletAccountIDs = ["1048291756","9584207136","6732810945","4029158736","8164072395","2057819463","9174623085","3841957260","5297401863","7609284153","4632185097","5827049136","8714956203","6497012835","2396185740","5048731962","7836241905","6104298735","9581726403","7246093815","4308169527","8924056713","5179302468","3589172406","1497825036"];
-  async function onWalletConnected(addr){
-    let map = getLS(LS.walletMap,{});
-    let accId = map[addr];
-    if(!accId){
-      const used = Object.values(map);
-      accId = walletAccountIDs.find(id=> !used.includes(id)) || String(Math.floor(1000000000 + Math.random()*9000000000));
-      map[addr] = accId; saveLS(LS.walletMap,map);
+  function placeTradeAll(){
+    if(app.tradeBalance <= 0) return alert("No funds in trade account");
+    // simulate placing a trade with all trade balance
+    const trades = getLS(LS.trades, []);
+    const trade = { id: Date.now(), symbol: $('#tradeSymbol').value, amount: app.tradeBalance, start: Date.now(), status: 'active' };
+    trades.push(trade);
+    saveLS(LS.trades, trades);
+    app.tradeBalance = 0;
+    saveState();
+    renderActiveTrades();
+    notify("Trade placed with all trade funds");
+  }
+
+  function renderActiveTrades(){
+    const trades = getLS(LS.trades, []);
+    if(!trades || !trades.length){
+      $('#tradeActiveTradesList').textContent = "No active trades";
+      return;
     }
-    app.user = { address: addr, accountId: accId };
-    saveLS(LS.user, app.user);
-    $('#walletText') && ($('#walletText').innerText = shortAddr(addr));
-    $('#walletIdDisplay') && ($('#walletIdDisplay').innerText = accId);
-    $('#walletId') && ($('#walletId').innerText = accId);
-    $('#walletId2') && ($('#walletId2').innerText = accId);
-    $('#totalBalance') && ($('#totalBalance').innerText = fmtUsd(TOTAL_BALANCE));
-    $('#totalBalance2') && ($('#totalBalance2').innerText = fmtUsd(TOTAL_BALANCE));
-    show($('#saveAccPopup')); // save acc popup if present; it's optional
-    switchPage('home');
+    $('#tradeActiveTradesList').innerHTML = trades.filter(t=>t.status==='active').map(t=>`${t.symbol} — ${fmtUsd(t.amount)} (started: ${new Date(t.start).toLocaleString()})`).join('\n');
   }
 
-  // UI bindings for wallet connector buttons
-  $('#connectMetaMask') && ($('#connectMetaMask').addEventListener('click', async () => {
-    if(window.ethereum){
-      try {
-        const [addr] = await window.ethereum.request({ method:'eth_requestAccounts' });
-        onWalletConnected(addr);
-      } catch(e){ alert('MetaMask error: '+(e.message||e)); }
-    } else alert('MetaMask not found');
-  }));
-  $('#connectWalletConnect') && ($('#connectWalletConnect').addEventListener('click', async () => {
-    const addr = prompt('Enter your ETH address (simulated WalletConnect):');
-    if(addr) onWalletConnected(addr);
-  }));
-  $('#connectTron') && ($('#connectTron').addEventListener('click', async () => {
-    if(window.tronWeb && window.tronWeb.defaultAddress?.base58) onWalletConnected(window.tronWeb.defaultAddress.base58);
-    else alert('TronLink not detected');
-  }));
-  $('#manualConfirm') && ($('#manualConfirm').addEventListener('click', () => {
-    const v = $('#manualInput').value.trim();
-    if(v.length>6) onWalletConnected(v); else alert('Enter a valid address');
-  }));
+  /* ---------- Persistence ---------- */
+  function saveState(){
+    saveLS('autoTrade_balances', { mainBalance: app.mainBalance, tradeBalance: app.tradeBalance });
+  }
+  function restoreState(){
+    const st = getLS('autoTrade_balances', null);
+    if(st){ app.mainBalance = st.mainBalance ?? app.mainBalance; app.tradeBalance = st.tradeBalance ?? app.tradeBalance; }
+  }
 
-  // login by ID
-  $('#loginIdBtn') && ($('#loginIdBtn').addEventListener('click', ()=>{ switchPage('walletConnector'); show($('#loginModal')); }));
-  // bind more inits later
+  /* ---------- Utilities ---------- */
+  function getLS(key, fallback){ try{ const v=localStorage.getItem(key); return v?JSON.parse(v):fallback;}catch(e){return fallback;} }
+  function short(a){ if(!a) return ""; return a.slice(0,6)+"..."+a.slice(-4); }
 
-  /* ---------------------
-     WITHDRAW / DEPOSIT / TRANSACTIONS
-     --------------------- */
-  $('#depositBtn') && ($('#depositBtn').addEventListener('click', async ()=>{
-    // show deposit modal
-    show($('#depositModal'));
-    if(!app.coinCache.length){
-      const mkts = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
-      if(mkts) app.coinCache = mkts.map(c=>({id:c.id,name:c.name,symbol:c.symbol,thumb:c.image}));
-    }
-    if($('#depositCoinList')) $('#depositCoinList').innerHTML = app.coinCache.slice(0,20).map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join('');
-  }));
+  /* ---------- Event wiring ---------- */
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    // init web3modal
+    initWeb3Modal();
+    await tryAutoConnect();
+    restoreState();
+    updateUIOnConnect();
+    loadUsdt(); loadMarkets();
+    initializeTradingView();
+    renderActiveTrades();
 
-  $('#closeDepositModal') && ($('#closeDepositModal').addEventListener('click', ()=> hide($('#depositModal'))));
-  $('#depositCoinList') && ($('#depositCoinList').addEventListener('click', (e)=>{
-    const row = e.target.closest('.coin-row'); if(!row) return;
-    const id = row.dataset.id;
-    // show network choice modal inline: simplified
-    let html = Object.keys(depositAddresses).map(net=>`<button class="btn btn-secondary w-full my-2 deposit-net-btn" data-net="${net}">${depositAddresses[net].label}</button>`).join('');
-    $('#depositCoinList').innerHTML = `<div class="small">Choose network for ${id}</div>`+html;
-    // wire fallback below: click on deposit-net-btn
-  }));
+    // restore last page
+    const last = getLastPage() || 'landingPage';
+    switchPage(last, true);
 
-  document.addEventListener('click', (e)=>{
-    const netBtn = e.target.closest('.deposit-net-btn');
-    if(netBtn){
-      const net = netBtn.dataset.net;
-      const info = depositAddresses[net];
-      hide($('#depositModal'));
-      // show deposit address modal quickly:
-      const modalHtml = `<div style="font-weight:700">${info.label}</div><div style="word-break:break-all;margin-top:8px">${info.addr}</div>`;
-      alert('Deposit address:\n\n'+info.label+'\n'+info.addr);
-    }
+    // wire header buttons
+    $('#connectWalletBtn').onclick = ()=>{ $('#walletModal').classList.remove('hide'); };
+    $('#closeWalletModal').onclick = ()=>{ $('#walletModal').classList.add('hide'); };
+    $('#connectMetaMask').onclick = async ()=>{ $('#manualAddressInput').classList.add('hide'); await connectWallet(); $('#walletModal').classList.add('hide'); };
+    $('#connectWalletConnect').onclick = async ()=>{ $('#manualAddressInput').classList.add('hide'); await connectWallet(); $('#walletModal').classList.add('hide'); };
+    $('#manualAddressBtn').onclick = ()=>{ $('#manualAddressInput').classList.remove('hide'); };
+    $('#manualConfirm').onclick = ()=>{ const v = $('#manualInput').value.trim(); if(v.length>6){ app.address=v; app.isConnected=true; saveLS(LS.user,{address:v}); updateUIOnConnect(); $('#walletModal').classList.add('hide'); notify("Manual address saved"); } else alert("Enter valid address"); };
+    $('#manualCancel').onclick = ()=>{ $('#manualAddressInput').classList.add('hide'); };
+
+    $('#connectedWalletBtn').onclick = (e)=>{ e.preventDefault(); $('#walletModal').classList.remove('hide'); };
+    $('#disconnectBtn').onclick = async ()=>{ disconnectWallet(); };
+
+    $('#loginIdBtn').onclick = ()=>{ $('#loginModal').classList.remove('hide'); };
+    $('#closeLoginModal').onclick = ()=>{ $('#loginModal').classList.add('hide'); };
+    $('#loginCancel').onclick = ()=>{ $('#loginModal').classList.add('hide'); };
+    $('#loginConfirm').onclick = async ()=>{
+      const v = $('#loginInput').value.trim();
+      if(!/^\d{10}$/.test(v)){ $('#loginMsg').textContent = "Enter a valid 10-digit ID"; return; }
+      $('#loginMsg').textContent = "Logging in..."; await new Promise(r=>setTimeout(r,1200));
+      $('#loginMsg').textContent = "Logged in (demo)"; $('#loginModal').classList.add('hide'); notify("Logged in");
+    };
+
+    // page nav via more menu
+    $('#moreBtn').onclick = ()=>{ $('#moreMenu').classList.toggle('hide'); };
+    document.addEventListener('click', (ev)=>{ if(!ev.target.closest('#moreBtn') && !ev.target.closest('#moreMenu')) $('#moreMenu').classList.add('hide'); });
+
+    // home actions
+    $('#depositBtn').onclick = ()=>{ switchPage('SwapPage'); notify("Deposit (simulated) — use Swap or external"); };
+    $('#transferBtn').onclick = async ()=>{
+      let amt = prompt("Amount to transfer to Trade account (USD):", "100");
+      if(!amt) return; amt = parseFloat(amt);
+      if(isNaN(amt)) return alert("Invalid amount");
+      transferToTrade(amt);
+    };
+    $('#withdrawBtn').onclick = ()=>{ alert("Open Withdraw modal (demo)"); };
+
+    $('#refreshMarkets').onclick = ()=>{ loadMarkets(); notify("Markets refreshed"); };
+
+    // swap
+    $('#swapBtnSwapPage').onclick = async ()=>{
+      const from = $('#swapFromCoin').value; const to = $('#swapToCoin').value; const amt = parseFloat($('#swapAmount').value);
+      if(!amt || amt<=0) return alert("Enter amount");
+      // simple simulated swap using CoinGecko
+      const markets = await fetch(`${COINGECKO_BASE}/simple/price?ids=${from},${to}&vs_currencies=usd`).then(r=>r.json());
+      const fromUsd = markets[from]?.usd || 0; const toUsd = markets[to]?.usd || 0;
+      if(!fromUsd || !toUsd) return alert("Rate unavailable");
+      const received = (amt * fromUsd) / toUsd;
+      $('#swapResult').textContent = `Estimated receive: ${received.toFixed(6)} ${to.toUpperCase()}`;
+      notify("Swap estimated (simulated)");
+    };
+
+    // trade actions
+    $('#loadSymbol').onclick = ()=>{ embedTradeChart($('#tradeSymbol').value, 'tradeChart'); };
+    $('#placeTradeBtn').onclick = ()=>{ if(confirm("Place trade using all trade funds?")) placeTradeAll(); };
+    $('#viewEarningsBtn').onclick = ()=>{ alert("Earnings page (demo)"); };
+
+    // support
+    $('#supportSendBtn').onclick = ()=>{ const msg = $('#supportUserMsg').value.trim(); if(!msg) return; $('#supportChatBox').innerHTML += `<div><b>You:</b> ${msg}</div>`; $('#supportUserMsg').value=''; setTimeout(()=>{ $('#supportChatBox').innerHTML += `<div class="small muted"><b>Bot:</b> Thanks — we'll get back to you (demo)</div>`; },800); };
+
+    // swap coin population
+    const coinList = await fetch(`${COINGECKO_BASE}/coins/list`).then(r=>r.json()).catch(()=>[]);
+    const shortList = (coinList||[]).slice(0,120);
+    $('#swapFromCoin').innerHTML = shortList.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    $('#swapToCoin').innerHTML = shortList.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+
+    // page switch bindings (some direct buttons)
+    document.querySelectorAll('[data-target]').forEach(el=>el.addEventListener('click', e=>{ e.preventDefault(); const t = el.dataset.target; if(t) switchPage(t); }));
+    // footer tabs wired above; also provide landing actions
+    $('#connectWalletBtn').addEventListener('click', ()=>{ $('#walletModal').classList.remove('hide'); });
+
+    // theme toggle
+    $('#themeSelect') && ($('#themeSelect').onchange = function(){ if(this.value==='light'){ document.body.style.background='#fff'; document.body.style.color='#000'; } else { document.body.style.background='var(--bg)'; document.body.style.color='#fff'; } });
+
+    // install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e)=>{ e.preventDefault(); deferredPrompt = e; $('#installPrompt').classList.remove('hide'); });
+    $('#installNowBtn').onclick = async ()=>{
+      if(deferredPrompt){ deferredPrompt.prompt(); const choice = await deferredPrompt.userChoice; $('#installPrompt').classList.add('hide'); }
+      else if(navigator.share){ navigator.share({title:'Auto Trading Bot', url:location.href}); }
+      else alert("Use your browser menu to install.");
+    };
+    $('#maybeLaterBtn').onclick = ()=>{ $('#installPrompt').classList.add('hide'); };
+
+    // close account
+    $('#closeAccountBtn').onclick = async ()=>{
+      if(!confirm("Close account? This is demo — will clear local data.")) return;
+      localStorage.clear(); location.reload();
+    };
+
+    // disconnect only button (as requested)
+    $('#disconnectBtn').onclick = ()=>{ disconnectWallet(); };
+
+    // update UI initial
+    updateUIOnConnect();
   });
 
-  // Withdraw flow
-  $('#withdrawBtn') && ($('#withdrawBtn').addEventListener('click', ()=> show($('#withdrawSheet'))));
-  $('#closeWithdrawSheet') && ($('#closeWithdrawSheet').addEventListener('click', ()=> hide($('#withdrawSheet'))));
-  $('#onChainTransferBtn') && ($('#onChainTransferBtn').addEventListener('click', ()=> { hide($('#withdrawSheet')); show($('#withdrawDetailModal')); }));
-  $('#closeWithdrawDetail') && ($('#closeWithdrawDetail').addEventListener('click', ()=> hide($('#withdrawDetailModal'))));
-  $('#fillFromWallet') && ($('#fillFromWallet').addEventListener('click', ()=> { if(app.user && $('#wdAddr')) $('#wdAddr').value = app.user.address || ''; }));
-  $('#wdMaxBtn') && ($('#wdMaxBtn').addEventListener('click', ()=> { if($('#wdAmt')) $('#wdAmt').value = TOTAL_BALANCE; }));
-  $('#wdSubmitBtn') && ($('#wdSubmitBtn').addEventListener('click', ()=>{
-    const addr = $('#wdAddr').value.trim(); const amt = parseFloat($('#wdAmt').value);
-    if(!addr || !amt || amt<=0){ $('#wdDetailMsg').innerText = 'Enter valid address and amount'; return; }
-    hide($('#withdrawDetailModal')); show($('#withdrawCodeModal'));
-  }));
-  $('#wdCodeSubmit') && ($('#wdCodeSubmit').addEventListener('click', async ()=>{
-    const code = $('#wdCodeInput').value.trim();
-    $('#wdCodeMsg').innerText = 'Processing...';
-    await sleep(1200);
-    if(validCodes.includes(code)){
-      const addr = $('#wdAddr').value.trim(); const amt = parseFloat($('#wdAmt').value);
-      const wd = { address: addr, amount: amt, network: $('#wdNetwork').value, start: now(), end: now()+60, status:'processing', userId: app.user?.accountId || 'guest' };
-      const ws = getLS(LS.withdraws, []); ws.push(wd); saveLS(LS.withdraws, ws); $('#wdCodeMsg').innerText = 'Withdrawal started';
-      hide($('#withdrawCodeModal'));
-      // show processing modal
-      $('#wpAddr') && ($('#wpAddr').innerText = wd.address);
-      $('#wpNetwork') && ($('#wpNetwork').innerText = wd.network);
-      $('#wpAmt') && ($('#wpAmt').innerText = fmtUsd(wd.amount));
-      show($('#withdrawProcessModal'));
-      // complete after short duration (demo)
-      setTimeout(()=>{
-        let arr = getLS(LS.withdraws,[]); arr = arr.map(x=> x.start===wd.start ? {...x, status:'completed', completedAt: now()} : x); saveLS(LS.withdraws,arr);
-        hide($('#withdrawProcessModal')); alert('Withdrawal completed (demo)');
-      }, 3000);
-    } else {
-      sendAttempts++;
-      if(sendAttempts>=5){ $('#wdCodeMsg').innerText = 'Withdrawals suspended for 48 hours (demo)'; } else { $('#wdCodeMsg').innerText = 'Invalid code'; }
-    }
-  }));
+  /* ---------- small helpers ---------- */
+  function saveLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+  function getLS(k, fallback){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):fallback;}catch(e){return fallback;} }
 
-  /* ---------------------
-     SUPPORT & NOTIFICATIONS
-     --------------------- */
-  $('#supportSendBtn') && ($('#supportSendBtn').addEventListener('click', ()=> {
-    const msg = $('#supportUserMsg').value.trim(); if(!msg) return;
-    const box = $('#supportChatBox'); box && (box.innerHTML += `<div style="margin-bottom:8px"><b>You:</b> ${msg}</div>`);
-    if($('#supportUserMsg')) $('#supportUserMsg').value = '';
-    setTimeout(()=> { box && (box.innerHTML += `<div style="color:#f0b90b;margin-bottom:8px"><b>Bot:</b> Thanks — support will reply (demo)</div>`); box && (box.scrollTop=box.scrollHeight); }, 900);
-  }));
-
-  function handleMarketNotif(){
-    if(app.notif.enabled){
-      const last = getLS('autoTrade_lastNotif',0);
-      if(now()-last > 43200){
-        cgFetch('/status_updates?project_type=coin&per_page=1&page=1').then(res=>{
-          if(res?.status_updates?.length){
-            const news = res.status_updates[0].description;
-            $('#notifPop').innerText = news; show($('#notifPop'));
-            setTimeout(()=>hide($('#notifPop')),9000);
-            saveLS('autoTrade_lastNotif', now());
-          }
-        }).catch(()=>{});
-      }
-    }
+  /* ---------- Inline service worker registration (register from inline code blob) ---------- */
+  if('serviceWorker' in navigator){
+    const swCode = `
+      const CACHE_NAME = 'auto-trade-cache-v1';
+      const ASSETS = ['./','/index.html','/app-logo.png'];
+      self.addEventListener('install', event=>{ self.skipWaiting(); event.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS)).catch(()=>{})); });
+      self.addEventListener('activate', event=>{ event.waitUntil(self.clients.claim()); });
+      self.addEventListener('fetch', event=>{ event.respondWith(caches.match(event.request).then(res=>res||fetch(event.request).catch(()=>caches.match('/')))); });
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl).then(()=>{ console.log('SW registered from blob'); }).catch(e=>console.warn('SW register failed', e));
   }
-
-  /* ---------------------
-     LANDING / SEARCH / FAVORITES
-     --------------------- */
-  function landing_getFavorites(){ return getLS(LS.landingFav, {}); }
-  function landing_saveFavorites(o){ saveLS(LS.landingFav, o); }
-  function landing_toggleFavorite(id){
-    const fav = landing_getFavorites();
-    if(fav[id]) delete fav[id]; else fav[id] = now();
-    landing_saveFavorites(fav);
-    return !!fav[id];
-  }
-
-  async function initLandingPage(){
-    // top coins preview
-    const global = await cgFetch('/global');
-    if(global && $('#landingMarket')) $('#landingMarket').innerHTML = `<div class="small">Market Cap: ${fmtUsd(global.data.total_market_cap.usd)} • 24h Vol: ${fmtUsd(global.data.total_volume.usd)}</div>`;
-    const coins = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
-    if(coins && $('#landingTopCoins')) $('#landingTopCoins').innerHTML = coins.map(c=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.02)"><div style="display:flex;gap:8px;align-items:center"><img src="${c.image}" class="w-6 h-6 rounded"><div><div style="font-weight:700">${c.name}</div><div class="small">${c.symbol.toUpperCase()}</div></div></div><div style="text-align:right"><div style="font-weight:700">${fmtUsd(c.current_price)}</div><div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div></div></div>`).join('');
-  }
-
-  /* ---------------------
-     INITIALIZATION & WIRING
-     --------------------- */
-  (function init(){
-    // set initial page
-    if(app.user && app.user.accountId) switchPage('home'); else switchPage('landingPage');
-
-    // wire connect button to open wallet connector page (user requested)
-    $('#connectWalletBtn') && $('#connectWalletBtn').addEventListener('click', ()=> switchPage('walletConnector'));
-    $('#connectedWalletBtn') && $('#connectedWalletBtn').addEventListener('click', ()=> switchPage('walletConnector'));
-    $('#getMobileAppBtn') && $('#getMobileAppBtn').addEventListener('click', ()=> alert('Mobile app link (demo)'));
-
-    // wire footer tabs (already done), and more menu
-    $('#moreBtn') && $('#moreBtn').addEventListener('click', ()=> $('#moreMenu').classList.toggle('hide'));
-    document.addEventListener('click', (e) => { if(!e.target.closest('#moreBtn') && !e.target.closest('#moreMenu')) $('#moreMenu') && $('#moreMenu').classList.add('hide'); });
-
-    // markets refresh
-    $('#refreshMarkets') && $('#refreshMarkets').addEventListener('click', ()=> loadMarkets());
-
-    // swap page wiring: load coins into selects
-    (async ()=>{
-      const mkts = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false');
-      if(mkts && mkts.length){
-        const opts = mkts.slice(0,40).map(c=>`<option value="${c.id}">${c.name} (${c.symbol.toUpperCase()})</option>`).join('');
-        $('#swapFromCoin') && ($('#swapFromCoin').innerHTML = opts);
-        $('#swapToCoin') && ($('#swapToCoin').innerHTML = opts);
-      }
-    })();
-
-    // swap actions
-    $('#swapSwitchBtn') && $('#swapSwitchBtn').addEventListener('click', ()=>{
-      const a=$('#swapFromCoin').value; $('#swapFromCoin').value = $('#swapToCoin').value; $('#swapToCoin').value = a;
-    });
-    $('#swapBtnSwapPage') && $('#swapBtnSwapPage').addEventListener('click', async ()=>{
-      const from = $('#swapFromCoin').value; const to = $('#swapToCoin').value; const amount = parseFloat($('#swapAmount').value);
-      if(!amount || amount<=0) return alert('Enter amount');
-      // get current prices (simple rate)
-      const rates = await cgFetch(`/simple/price?ids=${encodeURIComponent(from+","+to)}&vs_currencies=usd`);
-      if(!rates){ $('#swapResult').innerText = 'Rate unavailable'; return; }
-      const out = (amount * (rates[from].usd / rates[to].usd));
-      $('#swapResult').innerText = `Simulated: ${out.toFixed(6)} ${to.toUpperCase()}`;
-    });
-
-    // settings toggles
-    $('#notifToggle') && ($('#notifToggle').addEventListener('change', (e)=>{ app.notif.enabled = e.target.checked; saveLS(LS.notif, app.notif); $('#notifToggleLabel').innerText = e.target.checked ? 'On' : 'Off'; }));
-    $('#themeSelect') && ($('#themeSelect').addEventListener('change', (e)=>{ if(e.target.value==='light'){ document.body.style.background='#fff'; document.body.style.color='#111'; } else { document.body.style.background='var(--bg)'; document.body.style.color='#fff'; } }));
-
-    // account modal wiring
-    $('#showAccountBtn') && $('#showAccountBtn').addEventListener('click', ()=>{
-      if(app.user){ $('#accModalAddr').innerText = app.user.address || ''; $('#accModalID').innerText = app.user.accountId || ''; $('#accModalBal').innerText = fmtUsd(TOTAL_BALANCE); show($('#accountModal')); }
-      else alert('No connected account');
-    });
-    $('#closeAccModal') && $('#closeAccModal').addEventListener('click', ()=> hide($('#accountModal')));
-
-    // close auth modal
-    $('#gaCloseBtn') && $('#gaCloseBtn').addEventListener('click', ()=> hide($('#authModal')));
-
-    // small bindings for deposit/withdraw flows present earlier
-    $('#depositBtn') && $('#depositBtn').addEventListener('click', ()=> show($('#depositModal')));
-    $('#depositSearch') && $('#depositSearch').addEventListener('input', (e)=> {
-      const q = e.target.value.trim().toLowerCase();
-      if(!q) { $('#depositCoinList').innerHTML = app.coinCache.slice(0,20).map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join(''); return; }
-      const filtered = app.coinCache.filter(c=>c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)).slice(0,25);
-      $('#depositCoinList').innerHTML = filtered.map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join('');
-    });
-
-    // initial loads
-    loadUsdt(); loadMarkets(); initializeTradingView();
-    setInterval(()=>{ loadMarkets(); loadUsdt(); handleMarketNotif(); }, 60_000);
-
-  })();
 
   </script>
 </body>
