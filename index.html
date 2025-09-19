@@ -8,747 +8,951 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="app-logo.png">
   <link rel="apple-touch-icon" href="app-logo.png">
-  <!-- Tailwind CSS CDN -->
+  <!-- Tailwind CDN (keeps your original look) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- TradingView -->
   <script src="https://s3.tradingview.com/tv.js"></script>
-  <!-- ethers.js -->
+  <!-- ethers.js (wallet interactions) -->
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <!-- web3modal, walletconnect, tronweb, bitcoinjs-lib (for BTC address validate) -->
+  <!-- Helpful libs -->
   <script src="https://cdn.jsdelivr.net/npm/web3modal@1.9.12/dist/index.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@walletconnect/web3-provider@1.8.0/dist/umd/index.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bitcoinjs-lib@6.1.0/dist/bitcoinjs-lib.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tronweb@4.4.0/dist/TronWeb.js"></script>
-  <!-- otplib for TOTP/Google Authenticator -->
   <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib.umd.min.js"></script>
-  <!-- QRious for QR code generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
   <style>
-    .tab-active img { filter: invert(100%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(100%) contrast(100%); }
-    .coin-row:hover { background: rgba(255,255,255,0.02); }
-    .tv-container { border-radius: 8px; overflow: hidden; background: #0b0f14; border: 1px solid rgba(255,255,255,0.03); }
-    .install-prompt { background: #222; color: #fff; border-radius: 12px; box-shadow: 0 2px 32px #0008; padding: 28px; z-index: 50; position: fixed; top: 20%; left:50%; transform:translateX(-50%); max-width: 340px; width: 94vw; }
-    .btn { padding: 0.5em 1.2em; border-radius: 6px; font-weight: 500; }
-    .btn-primary { background: #f0b90b; color: #222; }
-    .btn-secondary { background: #24262b; color: #fff; }
-    .modal { background: rgba(0,0,0,0.75); position: fixed; z-index: 50; top:0;left:0;right:0;bottom:0; display:flex;align-items:center;justify-content:center; }
-    .modal-content { background:#181a20; border-radius:12px; padding:28px; max-width:96vw; width:380px; color:#fff; }
-    .sheet { position:fixed; left:0; right:0; bottom:0; background:#181a20; border-top-left-radius:18px; border-top-right-radius:18px; box-shadow:0 -4px 32px #0006; z-index:55; }
-    .sheet-content { padding:20px 18px; }
-    .fade { transition: opacity 0.3s; }
-    .notif-pop { background: #151818; color: #f0b90b; border-radius: 8px; font-size: 15px; position: fixed; top: 60px; left: 0; right: 0; margin: 0 auto; max-width: 360px; padding: 10px 20px; z-index: 44; border:1px solid #f0b90b44; box-shadow: 0 2px 12px #0004; }
-    .fadein { animation: fadein 0.5s; }
-    @keyframes fadein { from{ opacity:0; } to{opacity:1;} }
-    .input-black-text { color: #000 !important; background: #fff !important; }
-    .hide { display:none !important; }
-    .show { display:block !important; }
-    .tv-mobile-btn { background: #23262f; color: #f0b90b; border-radius: 8px; font-weight: 500; padding: 8px 16px; margin: 6px 0; }
-    .tv-mobile-footer { background: #101014; border-top: 1px solid #23262f; padding: 8px 0 6px 0; display: flex; justify-content: space-between; }
-    .tv-mobile-footer button { flex:1; margin: 0 2px; }
-    ::-webkit-scrollbar { width: 7px; background: #111;}
-    ::-webkit-scrollbar-thumb { background: #25262b; border-radius: 7px;}
-    @media (max-width:480px) {
-      .modal-content, .sheet-content { width: 98vw; max-width: 98vw; }
-      .notif-pop { max-width: 95vw; }
+    /* ---- cleaned inline css (keeps your design, tidier) ---- */
+    :root {
+      --bg: #0b0f14;
+      --panel: #111218;
+      --muted: #9aa3b2;
+      --accent: #f0b90b;
+      --card: #0f1114;
+      --border: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.02);
     }
+    html,body { margin:0; padding:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#fff; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .page { padding:1rem; }
+    .hidden { display:none!important; }
+    .btn { padding:0.5rem 1rem; border-radius:8px; font-weight:600; cursor:pointer; border:none; }
+    .btn-primary { background:var(--accent); color:#111; }
+    .btn-secondary { background:#23262b; color:#fff; border:1px solid rgba(255,255,255,0.03); }
+    .card { background:var(--panel); border-radius:10px; padding:1rem; border:1px solid var(--border); }
+    .tv-container { background:#0b0f14; border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.03); }
+    .coin-row:hover { background:var(--glass); }
+    .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); z-index:60; }
+    .modal-content { background:#15161a; padding:20px; border-radius:12px; width:min(96vw,420px); box-shadow:0 8px 40px rgba(0,0,0,0.6); color:#fff; }
+    .sheet { position:fixed; left:0; right:0; bottom:0; background:#121316; border-top-left-radius:14px; border-top-right-radius:14px; box-shadow:0 -8px 36px rgba(0,0,0,0.6); z-index:55; padding:14px; }
+    .hide { display:none!important; }
+    input, select, textarea { background:#0e1114; border:1px solid rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; color:#fff; width:100%; }
+    .small { font-size:0.85rem; color:#9aa3b2; }
+    footer.fixed-bottom { position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid rgba(255,255,255,0.03); z-index:50; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; }
+    .fav-btn { background:transparent; border:none; cursor:pointer; color:var(--accent); font-size:1.05rem; }
+    @media (max-width:640px) { .page { padding:0.75rem; } .grid-2 { grid-template-columns:1fr; } }
   </style>
 </head>
-<body class="bg-black text-white font-sans min-h-screen">
-  <!-- NOTIF POPUP -->
-  <div id="notifPop" class="notif-pop fadein hide"></div>
+<body>
 
-  <!-- INSTALL PROMPT -->
-  <div id="installPrompt" class="install-prompt hide">
-    <h3 class="text-lg font-semibold mb-2">Install App</h3>
-    <p>Install Blockchain Auto-Trading Bot for the best experience!</p>
-    <div style="display:flex;gap:12px;margin-top:16px;">
-      <button class="btn btn-primary" id="installNowBtn">Install Now</button>
-      <button class="btn btn-secondary" id="maybeLaterBtn">Maybe Later</button>
-    </div>
-  </div>
-
-  <!-- WALLET CONNECT MODAL -->
-  <div id="walletModal" class="modal hide" aria-modal="true">
-    <div class="modal-content" style="max-width:400px">
-      <div class="flex justify-between items-center mb-3">
-        <div class="font-bold text-lg">Connect Wallet</div>
-        <button id="closeWalletModal" aria-label="Close">&times;</button>
-      </div>
-      <div>
-        <button id="connectMetaMask" class="w-full my-2 btn btn-primary">MetaMask</button>
-        <button id="connectWalletConnect" class="w-full my-2 btn btn-secondary">WalletConnect</button>
-        <button id="connectTron" class="w-full my-2 btn btn-secondary">TronLink</button>
-        <button id="manualAddress" class="w-full my-2 btn btn-secondary">Manual Address</button>
-      </div>
-      <div id="manualAddressInput" class="my-2 hide">
-        <input id="manualInput" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Paste Wallet Address...">
-        <button id="manualConfirm" class="w-full btn btn-primary mt-2">Confirm</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- LOGIN MODAL -->
-  <div id="loginModal" class="modal hide" aria-modal="true">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Login with Account ID</div>
-      <input id="loginInput" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Enter your 10-digit Account ID" maxlength="10">
-      <button id="loginConfirm" class="w-full btn btn-primary mt-3">Confirm</button>
-      <div id="loginMsg" class="text-center text-sm text-gray-400 mt-3"></div>
-    </div>
-  </div>
-
-  <!-- ACCOUNT DETAILS MODAL -->
-  <div id="accountModal" class="modal hide" aria-modal="true">
-    <div class="modal-content">
-      <div class="font-bold text-lg">Account Details</div>
-      <div class="my-3">
-        <div class="text-xs text-gray-400">Connected Address</div>
-        <div id="accModalAddr" class="break-all"></div>
-        <div class="text-xs text-gray-400 mt-2">Wallet Account ID</div>
-        <div id="accModalID" class="break-all"></div>
-        <div class="text-xs text-gray-400 mt-2">Balance</div>
-        <div id="accModalBal" class="break-all"></div>
-      </div>
-      <button id="secureAccBtn" class="w-full btn btn-secondary my-2">Secure Account</button>
-      <button id="closeAccModal" class="w-full btn btn-primary my-2">Close</button>
-    </div>
-  </div>
-
-  <!-- 2FA GOOGLE AUTH MODAL -->
-  <div id="authModal" class="modal hide" aria-modal="true">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Google Authenticator (2FA)</div>
-      <div class="text-xs text-gray-400">Wallet Account ID</div>
-      <div id="authAccID" class="mb-2"></div>
-      <div class="text-xs text-gray-400">Scan QR code in Google Authenticator app</div>
-      <canvas id="gaQR" style="margin:12px auto;display:block;"></canvas>
-      <div class="text-xs text-gray-400">Secret Key</div>
-      <div id="gaSecret" class="break-all mb-2"></div>
-      <input id="gaCode" class="w-full input-black-text rounded px-2 py-2 my-2" maxlength="6" placeholder="Enter 6-digit code">
-      <button id="gaVerifyBtn" class="w-full btn btn-primary">Verify Code</button>
-      <div id="gaMsg" class="text-center text-sm text-gray-400 mt-2"></div>
-      <button id="gaCloseBtn" class="w-full btn btn-secondary mt-2">Close</button>
-    </div>
-  </div>
-
-  <!-- WITHDRAW SHEET -->
-  <div id="withdrawSheet" class="sheet hide">
-    <div class="sheet-content">
-      <div class="font-bold text-lg mb-3">Withdraw</div>
-      <button class="w-full btn btn-primary my-2" id="onChainTransferBtn">On-Chain Transfer</button>
-      <button class="w-full btn btn-secondary my-2" id="userAccIDBtn">User Account ID</button>
-      <button class="w-full btn btn-secondary my-2" id="closeWithdrawSheet">Cancel</button>
-    </div>
-  </div>
-
-  <!-- WITHDRAW DETAIL MODAL -->
-  <div id="withdrawDetailModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Withdraw Details</div>
-      <div class="mb-2">
-        <label class="text-xs text-gray-400">Withdrawal Address</label>
-        <input id="wdAddr" class="w-full input-black-text rounded px-2 py-2 mt-1 mb-2" placeholder="Destination address">
-        <button class="btn btn-secondary w-full my-1" id="fillFromWallet">Fill From Connected Wallet</button>
-      </div>
-      <div class="mb-2">
-        <label class="text-xs text-gray-400">Select Network</label>
-        <select id="wdNetwork" class="w-full input-black-text rounded px-2 py-2 mt-1">
-          <option value="Ethereum">Ethereum (ERC-20)</option>
-          <option value="Bitcoin">Bitcoin (BTC)</option>
-          <option value="BNB">BNB Smart Chain (BEP20)</option>
-          <option value="Tron">Tron (TRC-20)</option>
-        </select>
-      </div>
-      <div class="mb-2 flex items-center">
-        <label class="text-xs text-gray-400 flex-1">Amount</label>
-        <input id="wdAmt" type="number" min="0" step="0.0001" class="flex-1 input-black-text rounded px-2 py-2" style="max-width:110px" placeholder="0.00">
-        <button class="btn btn-secondary ml-2" id="wdMaxBtn">Max</button>
-      </div>
-      <div class="mb-2 text-xs text-yellow-500">Gas fee: 0.034 bnb</div>
-      <button class="btn btn-primary w-full mt-2" id="wdSubmitBtn">Withdraw</button>
-      <button class="btn btn-secondary w-full mt-2" id="closeWithdrawDetail">Cancel</button>
-      <div id="wdDetailMsg" class="text-center mt-2 text-red-400"></div>
-    </div>
-  </div>
-
-  <!-- WITHDRAW CODE MODAL -->
-  <div id="withdrawCodeModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Enter Validation Code</div>
-      <input id="wdCodeInput" class="w-full input-black-text rounded px-2 py-2 mt-1" maxlength="6" placeholder="6-digit code">
-      <button class="btn btn-primary w-full mt-3" id="wdCodeSubmit">Submit</button>
-      <div id="wdCodeMsg" class="text-center text-sm text-gray-400 mt-2"></div>
-      <button class="btn btn-secondary w-full mt-2" id="closeWithdrawCode">Cancel</button>
-    </div>
-  </div>
-
-  <!-- PROCESSING / SUCCESS MODALS -->
-  <div id="withdrawProcessModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Withdrawal Processing</div>
-      <div class="text-xs text-gray-400">Address</div><div id="wpAddr"></div>
-      <div class="text-xs text-gray-400 mt-2">Network</div><div id="wpNetwork"></div>
-      <div class="text-xs text-gray-400 mt-2">Amount</div><div id="wpAmt"></div>
-      <div class="text-xs text-gray-400 mt-2">Time Remaining</div><div id="wpCountdown" class="font-bold"></div>
-      <button class="btn btn-secondary w-full mt-3" id="wpViewDetails">View withdrawal details</button>
-      <button class="btn btn-primary w-full mt-2" id="wpCloseBtn">Close</button>
-    </div>
-  </div>
-
-  <div id="withdrawSuccessModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Withdrawal Successful</div>
-      <div id="wsDetails" class="mb-2"></div>
-      <button class="btn btn-primary w-full mt-2" id="wsCloseBtn">Close</button>
-    </div>
-  </div>
-
-  <!-- DEPOSIT MODALS -->
-  <div id="depositModal" class="modal hide">
-    <div class="modal-content" style="max-width:460px">
-      <div class="flex justify-between items-center mb-2">
-        <div class="font-bold text-lg">Deposit</div>
-        <button id="closeDepositModal" aria-label="Close">&times;</button>
-      </div>
-      <input id="depositSearch" class="w-full input-black-text rounded px-2 py-2 my-1" placeholder="Search coin to deposit...">
-      <div id="depositCoinList" class="max-h-52 overflow-auto mt-2"></div>
-    </div>
-  </div>
-
-  <div id="depositNetworkModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Select Network</div>
-      <div id="depositNetList"></div>
-      <button class="btn btn-secondary w-full mt-2" id="closeDepositNetModal">Cancel</button>
-    </div>
-  </div>
-
-  <div id="depositAddressModal" class="modal hide">
-    <div class="modal-content">
-      <div class="font-bold text-lg mb-2">Deposit Address</div>
-      <div class="text-xs text-gray-400 mb-1">Network</div><div id="depNetLabel"></div>
-      <div class="text-xs text-gray-400 mt-2 mb-1">Address</div><div id="depAddrLabel" class="break-all"></div>
-      <canvas id="depQrCanvas" style="margin:12px auto;display:block;"></canvas>
-      <button class="btn btn-primary w-full mt-2" id="copyDepAddr">Copy Address</button>
-      <button class="btn btn-secondary w-full mt-2" id="closeDepositAddrModal">Close</button>
-    </div>
-  </div>
-
-  <!-- TRADE CHART MODAL -->
-  <div id="tradeChartModal" class="modal hide">
-    <div class="modal-content" style="max-width:500px">
-      <div class="flex justify-between items-center mb-2">
-        <div class="font-bold text-lg">Trading Chart</div>
-        <button id="closeTradeChartModal" aria-label="Close">&times;</button>
-      </div>
-      <div id="tradingviewChart" class="tv-container" style="height:320px;"></div>
-    </div>
-  </div>
+  <!-- NOTIF -->
+  <div id="notifPop" class="card small hide" style="position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:80;"></div>
 
   <!-- HEADER -->
-  <header id="mainHeader" class="flex items-center justify-between px-4 py-3 border-b border-gray-800 sticky top-0 bg-black z-20">
+  <header id="mainHeader" class="flex items-center justify-between p-4 border-b border-gray-800 sticky top-0 bg-black z-40">
     <div class="flex items-center gap-3">
-      <img src="app-logo.png" alt="Logo" class="w-7 h-7 rounded" />
-      <div class="text-sm">
-        <div class="font-semibold">Blockchain Bot</div>
-        <div class="text-xs text-gray-400">Lite / Pro</div>
+      <img src="app-logo.png" alt="logo" class="w-9 h-9 rounded"/>
+      <div>
+        <div style="font-weight:700">Blockchain Bot</div>
+        <div class="small">Auto Trading • Demo</div>
       </div>
     </div>
-    <div class="flex-1 px-3 hidden sm:block">
-      <input id="globalSearch" type="search" placeholder="Search coins, pairs or features" class="w-full input-black-text text-sm px-3 py-2 rounded-md border border-gray-700 focus:outline-none" />
-      <div id="searchPanel" class="hidden mt-2 bg-gray-900 border border-gray-800 rounded-md max-h-56 overflow-auto text-sm">
-        <div id="searchResults" class="p-2"></div>
-      </div>
-    </div>
-    <div class="flex items-center gap-3 ml-3">
-      <button title="QR Scanner" class="p-1" id="qrBtn">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="QR Scanner" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <rect x="3" y="3" width="8" height="8" rx="1" />
-          <rect x="13" y="3" width="8" height="8" rx="1" />
-          <rect x="3" y="13" width="8" height="8" rx="1" />
-          <rect x="13" y="13" width="8" height="8" rx="1" />
-        </svg>
-      </button>
-      <button id="notifBtn" title="Notifications" class="p-1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="Notifications" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 00-9.33-4.95" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.5 19a2.5 2.5 0 005 0" />
-        </svg>
-      </button>
-      <button id="settingsBtn" title="Settings" class="p-1">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="Settings" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-          <circle cx="12" cy="12" r="3" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 5 15.4a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 5 8.6a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.6 5a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c.46.21.87.54 1 1.51a1.65 1.65 0 0 0 1.82.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19 8.6a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09c-.21.46-.54.87-1.51 1z" />
-        </svg>
-      </button>
-      <div class="relative">
-        <button id="moreBtn" class="p-1">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="More" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <circle cx="12" cy="5" r="1.5" />
-            <circle cx="12" cy="12" r="1.5" />
-            <circle cx="12" cy="19" r="1.5" />
-          </svg>
-        </button>
-        <div id="moreMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-md shadow-lg text-sm">
-          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="connectedWalletBtn">Connected Wallet</a>
-          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="settingsMenuBtn">Settings</a>
-          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="supportBtn">Support</a>
-          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="closeAccBtn">Close Account</a>
-          <a href="#" class="block px-4 py-2 hover:bg-gray-800" id="disconnectBtn">Disconnect</a>
+
+    <div class="flex items-center gap-3">
+      <input id="globalSearch" placeholder="Search coins or pairs" class="hidden sm:block" style="width:340px;padding:8px 12px;border-radius:8px;background:#0e1114;border:1px solid rgba(255,255,255,0.03);color:#fff"/>
+      <button id="notifBtn" title="Notifications" class="btn btn-secondary">🔔</button>
+      <button id="settingsBtn" class="btn btn-secondary">⚙️</button>
+      <div style="position:relative;">
+        <button id="moreBtn" class="btn btn-secondary">⋯</button>
+        <div id="moreMenu" class="card hide" style="position:absolute;right:0;top:40px;min-width:200px;">
+          <a href="#" id="connectedWalletBtn" class="block small py-2">Connected Wallet</a>
+          <a href="#" id="settingsMenuBtn" class="block small py-2">Settings</a>
+          <a href="#" id="supportBtn" class="block small py-2">Support</a>
+          <a href="#" id="disconnectBtn" class="block small py-2">Disconnect</a>
         </div>
       </div>
     </div>
   </header>
 
-  
-    <!-- MAIN PAGES -->
-  <main id="main" class="pb-28" role="main">
-  <!-- LANDING PAGE -->
-  <section id="landingPage" class="page p-4" aria-labelledby="landing-heading">
-    <div class="flex flex-col items-center mt-10">
-      <img src="app-logo.png" class="w-16 h-16 mb-2 rounded" alt="App Logo">
-      <h1 id="landing-heading" class="text-2xl font-bold mb-1 text-yellow-400">Blockchain Auto‑Trading Bot</h1>
-      <p class="text-center text-gray-300 mb-4 max-w-xl">
-        Automate trading with on‑chain precision and AI-driven strategies. Connect your wallet, configure risk controls,
-        and trade with Binance‑level speed and security — all from web or mobile.
-      </p>
+  <!-- PAGES (single-file SPA) -->
+  <main id="appRoot" style="padding-bottom:84px;">
 
-      <!-- Actions -->
-      <div class="flex flex-col sm:flex-row gap-3 w-full max-w-xs mb-4 items-stretch">
-        <button id="connectWalletBtn" class="btn btn-primary w-full" aria-haspopup="dialog" aria-controls="walletModal">
-          Connect Wallet
-        </button>
-        <button id="loginIdBtn" class="btn btn-secondary w-full" aria-expanded="false" aria-controls="loginPanel">
-          Login ID
-        </button>
-        <a id="getMobileAppBtn" class="btn btn-primary w-full text-center" href="/mobile" role="link" aria-label="Get Mobile App">
-          Get Mobile App
-        </a>
-      </div>
+    <!-- LANDING -->
+    <section id="landingPage" class="page">
+      <div style="max-width:920px;margin:0 auto;text-align:center">
+        <img src="app-logo.png" class="w-20 h-20 mx-auto rounded mb-3"/>
+        <h1 style="font-size:1.6rem;color:var(--accent);margin:0 0 6px;font-weight:800">Blockchain Auto-Trading Bot</h1>
+        <p class="small" style="max-width:760px;margin:0 auto 16px">Automate trading with on-chain precision and AI-driven strategies. Connect your wallet, configure risk controls, and trade with speed and security.</p>
 
-      <!-- Wallet status -->
-      <div id="walletStatus" class="w-full max-w-xs text-sm text-gray-300 mb-4" aria-live="polite">
-        <div class="flex items-center justify-between">
-          <span id="walletIndicator" class="flex items-center gap-2">
-            <span class="h-2 w-2 rounded-full bg-red-500" aria-hidden="true"></span>
-            <span id="walletText">Wallet not connected</span>
-          </span>
-          <button id="disconnectBtn" class="text-xs text-gray-400 hidden">Disconnect</button>
+        <div style="max-width:480px;margin:0 auto;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+          <button id="connectWalletBtn" class="btn btn-primary">Connect Wallet</button>
+          <button id="loginIdBtn" class="btn btn-secondary">Login ID</button>
+          <button id="getMobileAppBtn" class="btn btn-primary">Get Mobile App</button>
         </div>
-      </div>
 
-      <!-- Quick stats / badges -->
-      <div class="flex gap-3 items-center mb-4">
-        <span class="px-3 py-1 rounded bg-gray-800 text-sm text-yellow-300 font-medium">AI Signals</span>
-        <span class="px-3 py-1 rounded bg-gray-800 text-sm text-green-300 font-medium">Low Latency</span>
-        <span class="px-3 py-1 rounded bg-gray-800 text-sm text-blue-300 font-medium">On‑Chain</span>
-      </div>
-
-      <!-- Market Overview -->
-      <h2 class="font-semibold text-lg mt-7 mb-2">Market Overview</h2>
-      <div id="landingMarket" class="w-full max-w-md mx-auto bg-gray-900 rounded-lg p-3" role="region" aria-label="Market overview">
-        <!-- Skeleton / loading -->
-        <div class="animate-pulse">
-          <div class="h-4 bg-gray-700 rounded w-3/5 mb-3"></div>
-          <div class="h-2 bg-gray-800 rounded w-full mb-2"></div>
-          <div class="h-2 bg-gray-800 rounded w-5/6 mb-2"></div>
-          <div class="h-2 bg-gray-800 rounded w-2/3"></div>
-        </div>
-        <!-- JS will replace the skeleton with a chart and summary when data is available -->
-      </div>
-
-      <!-- Top Coins -->
-      <h2 class="font-semibold text-lg mt-7 mb-2">Top Coins</h2>
-      <div id="landingTopCoins" class="w-full max-w-md mx-auto grid grid-cols-1 gap-3" role="list" aria-label="Top coins list">
-        <!-- Example coin card template (JS should clone/fill) -->
-        <article class="coin-card flex items-center justify-between bg-gray-900 rounded-lg p-3" role="listitem" aria-label="Coin placeholder">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded bg-gray-800 flex items-center justify-center text-sm text-gray-300">—</div>
-            <div>
-              <div class="text-sm font-medium text-gray-100">Loading...</div>
-              <div class="text-xs text-gray-400">—</div>
-            </div>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+          <div class="card" style="width:320px;">
+            <div style="font-weight:700">Market Overview</div>
+            <div id="landingMarket" class="small" style="margin-top:8px">Loading market summary…</div>
           </div>
-          <div class="text-right">
-            <div class="text-sm text-gray-100">—</div>
-            <div class="text-xs text-gray-400">—</div>
-          </div>
-        </article>
-        <!-- Additional cards will be inserted by JS -->
-      </div>
 
-      <!-- Small footnote / trust line -->
-      <p class="text-xs text-gray-500 mt-5 max-w-md text-center">
-        Trading involves risk. Make sure you understand the strategy parameters and have proper risk management in place.
-      </p>
-    </div>
-  </section>
-
-
-    <!-- HOME PAGE -->
-    <section id="home" class="page hidden p-4">
-      <div id="saveAccPopup" class="modal hide" aria-modal="true">
-        <div class="modal-content">
-          <div class="font-bold text-lg mb-3">Save Account Details</div>
-          <div class="mb-2 text-sm">Please save your account info below. You will need this to log in again.</div>
-          <button id="showAccountBtn" class="btn btn-primary w-full my-2">Show Account Details</button>
-          <button id="closeSaveAccPopup" class="btn btn-secondary w-full my-2">Close</button>
-        </div>
-      </div>
-
-      <div id="homeMarketNotif" class="notif-pop hide"></div>
-      <div class="mb-3">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="text-xs text-gray-400">Wallet ID</div>
-            <div id="walletId" class="text-lg font-semibold mt-1">0000000000</div>
-          </div>
-          <div class="text-right">
-            <div class="text-xs text-gray-400">Total Balance</div>
-            <div id="totalBalance" class="text-2xl font-bold mt-1">$8,250.78</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex gap-2 mb-4">
-        <button id="depositBtn" class="btn btn-primary flex-1">Deposit</button>
-        <button id="swapBtn" class="btn btn-secondary flex-1">Swap</button>
-        <button id="withdrawBtn" class="btn btn-primary flex-1">Withdraw</button>
-      </div>
-
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <img id="usdtLogo" src="" class="w-8 h-8 rounded" alt="USDT logo" />
-            <div>
-              <div class="font-semibold">Tether USD (USDT)</div>
-              <div id="usdtPrice" class="text-sm text-gray-400">$8250.78</div>
-            </div>
+          <div class="card" style="width:320px;">
+            <div style="font-weight:700">Top Coins</div>
+            <div id="landingTopCoins" style="margin-top:8px"></div>
           </div>
         </div>
 
-        <div class="mt-3 flex gap-3">
-          <button class="flex-1 px-3 py-2 bg-gray-800 rounded text-sm" id="transactionsBtn">Transactions</button>
-          <button class="flex-1 px-3 py-2 bg-gray-800 rounded text-sm" id="activityBtn">Activity</button>
-        </div>
-      </div>
-
-      <div class="mt-4">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-semibold">Live Market Performance</div>
-          <div class="text-xs text-gray-400">BTC / USDT</div>
-        </div>
-        <div class="tv-container" id="tvchart" style="height:320px;"></div>
-      </div>
-
-      <div class="mt-4 grid grid-cols-1 gap-3">
-        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="font-semibold">Top Coins</div>
-            <button id="refreshMarkets" class="text-xs text-gray-400 hover:text-white">Refresh</button>
-          </div>
-          <div id="topCoinsList" class="space-y-2 text-sm"></div>
-        </div>
-        <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="font-semibold">Gainers & Losers (24h)</div>
-            <div class="text-xs text-gray-400">Updated</div>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <div id="gainers" class="space-y-1"></div>
-            <div id="losers" class="space-y-1"></div>
-          </div>
-        </div>
+        <p class="small" style="margin-top:18px;max-width:760px;margin-left:auto;margin-right:auto">Trading involves risk. This demo showcases flow and simulation only.</p>
       </div>
     </section>
 
-    <!-- MARKETS PAGE -->
-    <section id="markets" class="page hidden p-4">
-      <div class="flex items-center justify-between mb-3">
-        <div class="text-xl font-bold">Markets</div>
-        <div class="text-sm text-gray-400">Spot / Futures</div>
-      </div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-2">
-        <div class="flex items-center gap-3 mb-2">
-          <input id="marketSearch" type="text" placeholder="Search markets (e.g., BTC, ETH)" class="flex-1 input-black-text border border-gray-800 px-3 py-2 rounded text-sm" />
-          <button id="marketRefresh" class="px-3 py-2 bg-gray-800 rounded text-sm">Refresh</button>
-        </div>
-        <div id="marketsList" class="max-h-[52vh] overflow-auto"></div>
-      </div>
-    </section>
-
-    <!-- SWAP PAGE -->
-    <section id="SwapPage" class="page hidden p-4">
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-4">
+    <!-- WALLET CONNECTOR PAGE -->
+    <section id="walletConnector" class="page hidden">
+      <div style="max-width:700px;margin:0 auto">
         <div class="flex items-center justify-between mb-3">
-          <div class="text-xl font-bold">Swap</div>
-          <div class="text-sm text-gray-400">Simulated (CoinGecko rates)</div>
+          <div>
+            <div style="font-weight:700">Wallet Connector</div>
+            <div class="small">Connect MetaMask, WalletConnect, TronLink or enter address manually</div>
+          </div>
+          <div><button class="btn btn-secondary" onclick="switchPage('landingPage')">Back</button></div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="col-span-1 md:col-span-1">
-            <label class="text-xs text-gray-400">From</label>
-            <select id="swapFromCoin" class="w-full rounded px-2 py-2 bg-gray-800"></select>
-          </div>
-          <div class="col-span-1 md:col-span-1 flex items-end justify-center">
-            <button id="swapSwitchBtn" class="btn btn-secondary">⇅</button>
-          </div>
-          <div class="col-span-1 md:col-span-1">
-            <label class="text-xs text-gray-400">To</label>
-            <select id="swapToCoin" class="w-full rounded px-2 py-2 bg-gray-800"></select>
+        <div class="card">
+          <div style="display:flex;gap:10px;flex-direction:column;">
+            <button id="connectMetaMask" class="btn btn-primary">MetaMask</button>
+            <button id="connectWalletConnect" class="btn btn-secondary">WalletConnect</button>
+            <button id="connectTron" class="btn btn-secondary">TronLink</button>
+            <div>
+              <label class="small">Manual address</label>
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <input id="manualInput" placeholder="Enter wallet address" />
+                <button id="manualConfirm" class="btn btn-primary">Confirm</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="mt-3 flex gap-3">
-          <input id="swapAmount" type="number" placeholder="Amount" class="flex-1 input-black-text rounded px-2 py-2" />
-          <button id="swapBtnSwapPage" class="btn btn-primary">Swap</button>
-        </div>
-
-        <div id="swapRate" class="text-sm text-gray-400 mt-2"></div>
-        <div id="swapResult" class="mt-2 text-sm"></div>
-
-        <div class="mt-3 relative">
-          <button id="swapTransferBtn" class="btn btn-secondary">Transfer</button>
-          <div id="swapTransferDropdown" class="hide absolute left-0 mt-2 bg-gray-900 border border-gray-800 rounded p-2 shadow">
-            <button id="swapTransferToWallet" class="btn w-full mb-2">Transfer to Main Wallet</button>
-            <button id="swapTransferToTrade" class="btn w-full">Transfer to Trade Account</button>
-          </div>
+        <div class="card small" style="margin-top:12px;">
+          <div style="font-weight:700">Status</div>
+          <div style="margin-top:8px">Connected: <span id="walletText">No</span></div>
+          <div>Wallet ID: <span id="walletIdDisplay">—</span></div>
+          <div style="margin-top:8px"><button id="showAccountBtn" class="btn btn-secondary">Show Account Details</button></div>
         </div>
       </div>
     </section>
 
-    <!-- TRADE PAGE -->
-    <section id="trade" class="page hidden p-0">
-      <!-- Trade content is injected/managed by app script -->
-      <div id="mt5DashboardSection" class="p-4"></div>
-
-      <div id="tradePanel" class="p-4">
-        <div id="tradeMainSection" class="bg-gray-900 border border-gray-800 rounded-md p-4">
-          <div class="flex justify-between items-center mb-3">
-            <div class="font-bold text-lg">Total Trade Balance: <span id="tradeTotalBalance">$0.00</span></div>
-            <div class="font-bold text-lg">Total Earnings: <span id="tradeTotalEarnings">$0.00</span></div>
+    <!-- HOME -->
+    <section id="home" class="page hidden">
+      <div style="max-width:920px;margin:0 auto">
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div class="small">Wallet ID</div>
+            <div id="walletId" style="font-weight:800">0000000000</div>
           </div>
-          <div class="mb-3">Total Returns: <span id="tradeTotalReturns">$0.00</span></div>
+          <div style="text-align:right">
+            <div class="small">Total Balance</div>
+            <div id="totalBalance" style="font-weight:800">$8,250.78</div>
+          </div>
+        </div>
 
-          <div class="bg-gray-800 border border-gray-700 rounded p-3 mb-3">
-            <h4 class="font-semibold mb-2">Active Trades</h4>
-            <div id="tradeActiveTradesList" class="text-sm text-gray-400">No active trades</div>
+        <div style="display:flex;gap:10px;margin-top:12px;">
+          <button id="depositBtn" class="btn btn-primary flex-1">Deposit</button>
+          <button id="swapBtn" class="btn btn-secondary flex-1">Swap</button>
+          <button id="withdrawBtn" class="btn btn-primary flex-1">Withdraw</button>
+        </div>
+
+        <div class="card mt-4">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="display:flex;gap:12px;align-items:center;">
+              <img id="usdtLogo" src="" alt="USDT" class="w-10 h-10 rounded"/>
+              <div>
+                <div style="font-weight:700">Tether USD (USDT)</div>
+                <div id="usdtPrice" class="small">$0.00</div>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="small">Quick Actions</div>
+              <div style="margin-top:6px"><button id="transactionsBtn" class="btn btn-secondary small">Transactions</button> <button id="activityBtn" class="btn btn-secondary small">Activity</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div style="font-weight:700;margin-bottom:8px">Live Market Performance (BTC/USDT)</div>
+          <div id="tvchart" class="tv-container" style="height:320px;"></div>
+        </div>
+
+        <div class="grid-2 mt-4">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div style="font-weight:700">Top Coins</div>
+              <button id="refreshMarkets" class="btn btn-secondary small">Refresh</button>
+            </div>
+            <div id="topCoinsList" style="margin-top:8px"></div>
           </div>
 
-          <div class="mb-3">
-            <div class="flex items-center gap-3 mb-2">
-              <select id="tradeSymbol" class="bg-gray-800 text-white px-2 py-2 rounded text-sm border border-gray-700 focus:outline-none">
-                <option value="BINANCE:BTCUSDT">BTC/USDT</option>
-                <option value="BINANCE:ETHUSDT">ETH/USDT</option>
-                <option value="BINANCE:BNBUSDT">BNB/USDT</option>
+          <div class="card">
+            <div style="font-weight:700">Gainers & Losers (24h)</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <div id="gainers" style="flex:1"></div>
+              <div id="losers" style="flex:1"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- MARKETS -->
+    <section id="markets" class="page hidden">
+      <div style="max-width:920px;margin:0 auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-weight:700">Markets</div>
+          <div class="small">Spot • Demo</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="marketSearch" placeholder="Search markets e.g. BTC, ETH"/>
+            <button id="marketRefresh" class="btn btn-secondary">Refresh</button>
+          </div>
+          <div id="marketsList" style="max-height:60vh;overflow:auto"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SWAP -->
+    <section id="SwapPage" class="page hidden">
+      <div style="max-width:760px;margin:0 auto">
+        <div style="font-weight:700;margin-bottom:8px">Swap (Simulated)</div>
+        <div class="card">
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end">
+            <div>
+              <label class="small">From</label>
+              <select id="swapFromCoin"></select>
+            </div>
+            <div style="text-align:center">
+              <button id="swapSwitchBtn" class="btn btn-secondary">⇅</button>
+            </div>
+            <div>
+              <label class="small">To</label>
+              <select id="swapToCoin"></select>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input id="swapAmount" placeholder="Amount" type="number" />
+            <button id="swapBtnSwapPage" class="btn btn-primary">Swap</button>
+          </div>
+          <div id="swapRate" class="small mt-2"></div>
+          <div id="swapResult" class="small mt-2"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRADE -->
+    <section id="trade" class="page hidden">
+      <div style="max-width:920px;margin:0 auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-weight:700">Trading</div>
+          <div class="small">Simulation & MT5 panel</div>
+        </div>
+
+        <div class="card mt-3">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>Total Trade Balance: <span id="tradeTotalBalance" style="font-weight:800">$0.00</span></div>
+            <div>Total Earnings: <span id="tradeTotalEarnings" style="font-weight:800">$0.00</span></div>
+          </div>
+
+          <div style="margin-top:10px">
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="tradeSymbol" style="width:220px">
+                <option>BINANCE:BTCUSDT</option>
+                <option>BINANCE:ETHUSDT</option>
+                <option>BINANCE:BNBUSDT</option>
               </select>
               <button id="loadSymbol" class="btn btn-secondary">Load Chart</button>
+              <button id="placeTradeBtn" class="btn btn-primary">Place Trade</button>
+              <button id="viewEarningsBtn" class="btn btn-secondary">Earnings</button>
             </div>
-            <div id="tradeChart" class="tv-container" style="height:320px;"></div>
+            <div id="tradeChart" class="tv-container" style="height:320px;margin-top:12px"></div>
+            <div id="tradeActiveTradesList" style="margin-top:12px"></div>
           </div>
-
-          <div class="flex gap-3 my-3">
-            <button id="placeTradeBtn" class="btn btn-primary flex-1">Place Trade</button>
-            <button id="viewEarningsBtn" class="btn btn-secondary flex-1">View Earnings</button>
-          </div>
-
-          <div id="tradeAssetSection" class="mt-3"></div>
-
-          <div id="tradingResults" class="hide mt-3 p-3 bg-gray-800 rounded">
-            <div class="font-bold mb-2">Trading Simulation Results</div>
-            <div>Initial Investment: <span id="initialInvestment"></span></div>
-            <div>Investment Duration: <span id="investmentDuration"></span></div>
-            <div>Total Days: <span id="totalDays"></span></div>
-            <div>Final Amount: <span id="finalAmount"></span></div>
-            <div>Total Profit: <span id="totalProfit"></span></div>
-            <div>ROI: <span id="roi"></span></div>
-            <div class="mt-3"><button onclick="startTradingSimulation()" class="btn btn-primary">Start Trading</button></div>
-          </div>
-
-          <div id="activeTradingDisplay" class="hide mt-3 p-3 bg-gray-800 rounded">
-            <div class="font-bold mb-2">Active Trading Simulation</div>
-            <div>Current Value: <span id="currentTradingValue"></span></div>
-            <div>Current Profit: <span id="currentProfit"></span></div>
-            <div>Days Remaining: <span id="daysRemaining"></span></div>
-            <div class="mt-3"><button onclick="stopTradingSimulation()" class="btn btn-secondary">Stop Trading</button></div>
-          </div>
-        </div>
-
-        <div id="tradeDynamicSection" style="display:none;margin-top:12px;"></div>
-      </div>
-
-      <footer id="tradeFooter" class="tv-mobile-footer mt-3">
-        <button id="tvTradeBtn" class="tv-mobile-btn">Trade</button>
-        <button id="tvEarningsBtn" class="tv-mobile-btn">Earnings</button>
-        <button id="tvPortfolioBtn" class="tv-mobile-btn">Portfolio</button>
-        <button id="tvDepositBtn" class="tv-mobile-btn">Deposit</button>
-        <button id="tvTransferBtn" class="tv-mobile-btn">Transfer</button>
-      </footer>
-    </section>
-
-    <!-- FUTURES PAGE -->
-    <section id="futures" class="page hidden p-4">
-      <div class="text-xl font-bold mb-3">Futures</div>
-      <div class="tv-container" id="futuresChart" style="height:420px;"></div>
-      <div class="mt-3 bg-gray-900 border border-gray-800 rounded-md p-3">
-        <div class="flex items-center justify-between">
-          <div class="font-semibold">Futures Pairs</div>
-          <div class="text-sm text-gray-400">Simulated</div>
-        </div>
-        <div id="futuresList" class="mt-3 text-sm"></div>
-      </div>
-    </section>
-
-    <!-- WALLETS PAGE -->
-    <section id="wallets" class="page hidden p-4">
-      <div class="text-xl font-bold mb-3">Wallets</div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="text-xs text-gray-400">Wallet ID</div>
-            <div id="walletId2" class="font-semibold mt-1">0000000000</div>
-          </div>
-          <div class="text-right">
-            <div class="text-xs text-gray-400">Total Balance</div>
-            <div id="totalBalance2" class="text-lg font-bold mt-1">$8,250.78</div>
-          </div>
-        </div>
-        <div class="mt-3">
-          <div class="font-semibold mb-2">Holdings</div>
-          <div id="walletHoldings" class="space-y-2 text-sm"></div>
-        </div>
-        <div class="mt-3">
-          <div class="font-semibold mb-2">Recent Transactions</div>
-          <div id="recentTx" class="text-sm text-gray-400">No transactions — demo mode.</div>
         </div>
       </div>
     </section>
 
-    <!-- SETTINGS PAGE -->
-    <section id="settingsPage" class="page hidden p-4">
-      <div class="text-xl font-bold mb-3">Settings</div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
-        <div class="mb-2 flex items-center justify-between">
-          <div>Enable Notifications</div>
-          <label class="flex items-center cursor-pointer">
-            <input type="checkbox" id="notifToggle" class="form-checkbox h-5 w-5 text-yellow-500" />
-            <span class="ml-2 text-xs text-gray-400" id="notifToggleLabel"></span>
-          </label>
+    <!-- FUTURES -->
+    <section id="futures" class="page hidden">
+      <div style="max-width:920px;margin:0 auto">
+        <div style="font-weight:700">Futures (Demo)</div>
+        <div id="futuresChart" class="tv-container" style="height:420px;margin-top:12px"></div>
+        <div class="card mt-4" id="futuresList"></div>
+      </div>
+    </section>
+
+    <!-- WALLETS -->
+    <section id="wallets" class="page hidden">
+      <div style="max-width:760px;margin:0 auto">
+        <div style="font-weight:700">Wallets</div>
+
+        <div class="card mt-3">
+          <div style="display:flex;justify-content:space-between">
+            <div>
+              <div class="small">Wallet ID</div>
+              <div id="walletId2" style="font-weight:700">0000000000</div>
+            </div>
+            <div style="text-align:right">
+              <div class="small">Total Balance</div>
+              <div id="totalBalance2" style="font-weight:700">$8,250.78</div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div style="font-weight:700">Holdings</div>
+            <div id="walletHoldings" style="margin-top:8px"></div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div style="font-weight:700">Recent Transactions</div>
+            <div id="recentTx" class="small" style="margin-top:8px">No transactions — demo mode.</div>
+          </div>
         </div>
-        <div class="mb-2 flex items-center justify-between">
-          <div>Theme</div>
-          <select id="themeSelect" class="bg-gray-800 px-2 py-2 rounded text-sm">
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-            <option value="system">System</option>
+
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="settingsPage" class="page hidden">
+      <div style="max-width:760px;margin:0 auto">
+        <div style="font-weight:700">Settings</div>
+        <div class="card mt-3">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>Enable Notifications</div>
+            <label style="display:flex;gap:8px;align-items:center">
+              <input type="checkbox" id="notifToggle"/>
+              <span id="notifToggleLabel" class="small"></span>
+            </label>
+          </div>
+
+          <div style="margin-top:10px">
+            <div>Theme</div>
+            <select id="themeSelect" style="margin-top:6px;width:180px">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+
+          <div style="margin-top:10px">
+            <button id="closeAccountBtn" class="btn btn-primary">Close Account (2FA required)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SUPPORT -->
+    <section id="supportPage" class="page hidden">
+      <div style="max-width:760px;margin:0 auto">
+        <div style="font-weight:700">Support</div>
+        <div class="card mt-3">
+          <div style="font-weight:700">Live Support (AI Demo)</div>
+          <div id="supportChatBox" style="height:180px;overflow:auto;margin-top:8px" class="small"></div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="supportUserMsg" placeholder="Type your message" />
+            <button id="supportSendBtn" class="btn btn-primary">Send</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOTIFICATIONS -->
+    <section id="notifPage" class="page hidden">
+      <div style="max-width:760px;margin:0 auto">
+        <div style="font-weight:700">Notifications</div>
+        <div class="card mt-3">
+          <div style="font-weight:700">Recent</div>
+          <div id="notifList" style="margin-top:8px" class="small"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEPOSIT / WITHDRAW MODALS (kept as modals to avoid page clutter) -->
+    <!-- Deposit modal -->
+    <div id="depositModal" class="modal hide" aria-hidden="true">
+      <div class="modal-content">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:700">Deposit</div>
+          <button id="closeDepositModal" class="btn btn-secondary">✕</button>
+        </div>
+        <div style="margin-top:10px">
+          <input id="depositSearch" placeholder="Search coin..." />
+          <div id="depositCoinList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Withdraw sheet -->
+    <div id="withdrawSheet" class="sheet hide">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700">Withdraw</div>
+        <button id="closeWithdrawSheet" class="btn btn-secondary">Cancel</button>
+      </div>
+      <div style="margin-top:10px">
+        <button id="onChainTransferBtn" class="btn btn-primary w-full">On-Chain Transfer</button>
+        <button id="userAccIDBtn" class="btn btn-secondary w-full mt-2">User Account ID</button>
+      </div>
+    </div>
+
+    <!-- Withdraw detail modal -->
+    <div id="withdrawDetailModal" class="modal hide">
+      <div class="modal-content">
+        <div style="font-weight:700">Withdraw Details</div>
+        <div style="margin-top:8px">
+          <label class="small">Address</label>
+          <input id="wdAddr" placeholder="Destination address" />
+          <button id="fillFromWallet" class="btn btn-secondary small mt-2">Fill From Connected Wallet</button>
+        </div>
+        <div style="margin-top:8px">
+          <label class="small">Network</label>
+          <select id="wdNetwork">
+            <option>Ethereum</option>
+            <option>Bitcoin</option>
+            <option>BNB</option>
+            <option>Tron</option>
           </select>
         </div>
-        <div class="mb-2">
-          <button id="closeAccountBtn" class="btn btn-primary w-full mt-2">Close Account (2FA Required)</button>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <input id="wdAmt" type="number" placeholder="Amount" style="flex:1" />
+          <button id="wdMaxBtn" class="btn btn-secondary">Max</button>
+        </div>
+        <div style="margin-top:10px">
+          <button id="wdSubmitBtn" class="btn btn-primary w-full">Withdraw</button>
+          <button id="closeWithdrawDetail" class="btn btn-secondary w-full mt-2">Cancel</button>
+          <div id="wdDetailMsg" class="small mt-2" style="color:#ff6b6b"></div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- SUPPORT PAGE -->
-    <section id="supportPage" class="page hidden p-4">
-      <div class="text-xl font-bold mb-3">Support</div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
-        <div class="font-bold mb-2">FAQs</div>
-        <div class="mb-1"><span class="font-semibold">How to connect a wallet?</span><br>Click 'Connect Wallet' on the landing page and follow the prompts.</div>
-        <div class="mb-1"><span class="font-semibold">How to withdraw?</span><br>Go to Home, click Withdraw, follow the steps.</div>
-        <div class="mb-1"><span class="font-semibold">How do I enable 2FA?</span><br>In Account Details, click Secure Account.</div>
-      </div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-        <div class="font-bold mb-2">Live Support AI Bot</div>
-        <div id="supportChatBox" class="max-h-80 overflow-auto bg-gray-800 p-3 rounded mb-3" style="height:220px"></div>
-        <div class="flex gap-2">
-          <input id="supportUserMsg" class="flex-1 input-black-text rounded px-2 py-2" placeholder="Type your message...">
-          <button id="supportSendBtn" class="btn btn-primary">Send</button>
+    <!-- Withdraw code modal -->
+    <div id="withdrawCodeModal" class="modal hide">
+      <div class="modal-content">
+        <div style="font-weight:700">Enter Validation Code</div>
+        <div style="margin-top:8px">
+          <input id="wdCodeInput" placeholder="6-digit code" maxlength="6" />
+          <div style="margin-top:8px">
+            <button id="wdCodeSubmit" class="btn btn-primary w-full">Submit</button>
+            <button id="closeWithdrawCode" class="btn btn-secondary w-full mt-2">Cancel</button>
+            <div id="wdCodeMsg" class="small mt-2"></div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- NOTIFICATIONS PAGE -->
-    <section id="notifPage" class="page hidden p-4">
-      <div class="text-xl font-bold mb-3">Notifications</div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3 mb-4">
-        <div class="mb-2 flex items-center justify-between">
-          <div>Receive Daily Market Updates</div>
-          <label class="flex items-center cursor-pointer">
-            <input type="checkbox" id="notifPageToggle" class="form-checkbox h-5 w-5 text-yellow-500" />
-            <span class="ml-2 text-xs text-gray-400" id="notifPageToggleLabel"></span>
-          </label>
+    <!-- Account modal -->
+    <div id="accountModal" class="modal hide">
+      <div class="modal-content">
+        <div style="font-weight:700">Account Details</div>
+        <div style="margin-top:8px">
+          <div class="small">Address</div>
+          <div id="accModalAddr" class="small" style="word-break:break-all"></div>
+          <div class="small" style="margin-top:6px">Account ID</div>
+          <div id="accModalID" class="small"></div>
+          <div class="small" style="margin-top:6px">Balance</div>
+          <div id="accModalBal" class="small"></div>
+        </div>
+        <div style="margin-top:12px">
+          <button id="secureAccBtn" class="btn btn-secondary w-full">Secure Account (2FA)</button>
+          <button id="closeAccModal" class="btn btn-primary w-full mt-2">Close</button>
         </div>
       </div>
-      <div class="bg-gray-900 border border-gray-800 rounded-md p-3">
-        <div class="font-bold mb-2">Recent Notifications</div>
-        <div id="notifList"></div>
+    </div>
+
+    <!-- Auth modal -->
+    <div id="authModal" class="modal hide">
+      <div class="modal-content">
+        <div style="font-weight:700">Google Authenticator (2FA)</div>
+        <div id="authAccID" class="small mt-2"></div>
+        <canvas id="gaQR" style="display:block;margin:8px auto;"></canvas>
+        <div id="gaSecret" class="small break-all mt-1"></div>
+        <input id="gaCode" placeholder="6-digit code" maxlength="6" style="margin-top:8px"/>
+        <div style="margin-top:8px">
+          <button id="gaVerifyBtn" class="btn btn-primary w-full">Verify</button>
+          <button id="gaCloseBtn" class="btn btn-secondary w-full mt-2">Close</button>
+          <div id="gaMsg" class="small mt-2"></div>
+        </div>
       </div>
-    </section>
+    </div>
 
- </main>
+  </main>
 
-  <!-- FOOTER NAV (Binance style) -->
-  <footer class="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-30">
-    <nav class="flex justify-between items-center max-w-3xl mx-auto px-2 py-2">
-      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="home" id="tab-home">
-        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 9.5L12 3l9 6.5V21a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z'/></svg>" class="w-6 h-6" />
-        <span class="text-[11px] mt-0.5">Home</span>
-      </button>
-      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="markets" id="tab-markets">
-        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 3v18h18'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M7 15l4-6 5 8 3-4'/></svg>" class="w-6 h-6" />
-        <span class="text-[11px]">Markets</span>
-      </button>
-      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="trade" id="tab-trade">
-        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M3 12h18M12 3v18'/></svg>" class="w-6 h-6"/>
-        <span class="text-[11px]">Trade</span>
-      </button>
-      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="futures" id="tab-futures">
-        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M12 2v20M5 7h14'/></svg>" class="w-6 h-6"/>
-        <span class="text-[11px]">Futures</span>
-      </button>
-      <button class="tab flex-1 flex flex-col items-center gap-1 py-1" data-target="wallets" id="tab-wallets">
-        <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' stroke='white' viewBox='0 0 24 24'><rect x='2' y='6' width='20' height='12' rx='2'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M16 12a1 1 0 101 1 1 1 0 00-1-1z'/></svg>" class="w-6 h-6"/>
-        <span class="text-[11px]">Wallets</span>
-      </button>
+  <!-- FOOTER NAV -->
+  <footer class="fixed-bottom">
+    <nav style="max-width:920px;margin:0 auto;display:flex;justify-content:space-between;gap:6px;padding:8px;">
+      <button class="tab btn btn-secondary" data-target="home">Home</button>
+      <button class="tab btn btn-secondary" data-target="markets">Markets</button>
+      <button class="tab btn btn-secondary" data-target="trade">Trade</button>
+      <button class="tab btn btn-secondary" data-target="futures">Futures</button>
+      <button class="tab btn btn-secondary" data-target="wallets">Wallets</button>
     </nav>
   </footer>
 
-  <!-- PWA / Service Worker -->
+  <!-- SERVICE WORKER / PWA -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+      window.addEventListener('load', () => { navigator.serviceWorker?.register('service-worker.js').catch(()=>{}); });
     }
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      const el = document.getElementById('installPrompt');
-      if (el) el.classList.remove('hide');
-    });
-    document.getElementById('getMobileAppBtn') && (document.getElementById('getMobileAppBtn').onclick = function() {
-      const el = document.getElementById('installPrompt'); if (el) el.classList.remove('hide');
-    });
-    document.getElementById('installNowBtn') && (document.getElementById('installNowBtn').onclick = async function() {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          document.getElementById('installPrompt').classList.add('hide');
-        }
-      } else if (navigator.share) {
-        navigator.share({ title: "Install Blockchain Auto-Trading Bot", url: location.href });
-      } else {
-        alert("To install: Use your browser's menu and select 'Add to Home screen'.");
-      }
-    });
-    document.getElementById('maybeLaterBtn') && (document.getElementById('maybeLaterBtn').onclick = function() {
-      document.getElementById('installPrompt').classList.add('hide');
-    });
   </script>
 
-  <!-- Application script (merged app) -->
-  <script src="app-bot.js"></script>
+  <!-- ========= MERGED APPLICATION JS ========= -->
+  <script>
+  /* ---------------------
+     CONFIG & CONSTANTS
+     --------------------- */
+  const COINGECKO_BASE = 'https://api.coingecko.com/api/v3';
+  const TOTAL_BALANCE = 8250.78;
+  const TRADE_RETURNS_RATE = 0.001; // daily demo
+  const TRADE_DURATIONS = [1,3,6,12];
+  const depositAddresses = {
+    "Bitcoin":   { addr: "bc1qv4fffwt8ux3k33n2dms5cdvuh6suc0gtfevxzu", label: "Bitcoin [BTC] Native" },
+    "Ethereum":  { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "Ethereum [ERC-20]" },
+    "BNB":       { addr: "0xB36EDa1ffC696FFba07D4Be5cd249FE5E0118130", label: "BNB Smart Chain [BEP20]" },
+    "Tron":      { addr: "TSt7yoNwGYRbtMMfkSAHE6dPs1cd9rxcco", label: "Tron [TRC-20]" }
+  };
+  const LS = { user: "autoTrade_user", walletMap: "autoTrade_walletMap", transactions: "autoTrade_transactions",
+    withdraws:"autoTrade_withdrawals", withdrawSusp:"autoTrade_withdrawSusp", twofa:"autoTrade_2fa", twofaStatus:"autoTrade_2faStatus",
+    notif:"autoTrade_notif", notifMsgs:"autoTrade_notifMsgs", tradingSimulation:"tradingSimulation", landingFav:"autoTrade_landingFav_v1",
+    tradeState:"autoTrade_tradeState", mainPortfolio:"autoTrade_mainPortfolio"
+  };
+  const validCodes = ["483921","175064","902718","634285","217509","856430","490127","731694","562803","308417","941256","128374","675820","203519","487960","819432","356701","740528","612947","098135","573864","284691","160738","495260","837514","021693","658407","794135","320586","946172"];
+  let sendAttempts = 0;
+
+  /* ---------------------
+     UTILITIES
+     --------------------- */
+  function $(s){ return document.querySelector(s); }
+  function $all(s){ return Array.from(document.querySelectorAll(s)); }
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  function fmtUsd(n){ return typeof n === 'number' ? n.toLocaleString('en-US',{style:'currency',currency:'USD'}) : n; }
+  function now(){ return Math.floor(Date.now()/1000); }
+  function saveLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+  function getLS(k,fb){ try{ const t=localStorage.getItem(k); return t?JSON.parse(t):fb; }catch{return fb;} }
+  function delLS(k){ localStorage.removeItem(k); }
+  function show(el){ if(el) el.classList.remove('hide'); }
+  function hide(el){ if(el) el.classList.add('hide'); }
+  function shortAddr(addr){ if(!addr) return ''; if(addr.startsWith('0x')) return addr.slice(0,6)+'...'+addr.slice(-4); if(addr.length>12) return addr.slice(0,5)+'...'+addr.slice(-4); return addr; }
+
+  /* ---------------------
+     APP STATE
+     --------------------- */
+  let app = {
+    user: getLS(LS.user, null),
+    walletMap: getLS(LS.walletMap,{ }),
+    transactions: getLS(LS.transactions,[]),
+    withdrawals: getLS(LS.withdraws,[]),
+    withdrawSusp: getLS(LS.withdrawSusp,{}),
+    twofa: getLS(LS.twofa,{}),
+    twofaStatus: getLS(LS.twofaStatus,{}),
+    notif: getLS(LS.notif,{enabled:false}),
+    notifMsgs: getLS(LS.notifMsgs,[]),
+    coinCache: []
+  };
+
+  // trade state
+  function getTradeState(){ return getLS(LS.tradeState, { totalBalance: TOTAL_BALANCE, totalEarnings:0, totalReturns:0, trades:[], lastSymbol:'BINANCE:BTCUSDT' }); }
+  function setTradeState(s){ saveLS(LS.tradeState, s); }
+  function getMainPortfolio(){ return getLS(LS.mainPortfolio, { totalPortfolio: TOTAL_BALANCE }); }
+  function setMainPortfolio(o){ saveLS(LS.mainPortfolio, o); }
+
+  /* ---------------------
+     PAGE NAV
+     --------------------- */
+  function switchPage(id){
+    $all('.page').forEach(p=>p.classList.add('hidden'));
+    const tgt = document.getElementById(id);
+    if(tgt) tgt.classList.remove('hidden');
+    // page init hooks
+    if(id==='home'){ loadUsdt(); loadMarkets(); initializeTradingView(); renderTradeMainSection(); }
+    if(id==='landingPage'){ initLandingPage(); }
+    if(id==='markets'){ loadMarkets(); }
+    if(id==='walletConnector'){ /* nothing extra */ }
+  }
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-target]');
+    if(!el) return;
+    const t = el.dataset.target;
+    if(t) { e.preventDefault(); switchPage(t); }
+  });
+  // wire footer tabs
+  $all('.tab').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.target)));
+
+  /* ---------------------
+     COINGECKO: Shared helpers
+     --------------------- */
+  async function cgFetch(path, opts){
+    const url = COINGECKO_BASE + path;
+    try {
+      const resp = await fetch(url);
+      if(!resp.ok) throw new Error('CG error');
+      return await resp.json();
+    } catch(err){ console.warn('cgFetch failed', err); return null; }
+  }
+
+  /* ---------------------
+     MARKETS & USDT
+     --------------------- */
+  async function loadMarkets(){
+    try {
+      const data = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h');
+      if(!data) return;
+      // top coins (home)
+      if($('#topCoinsList')){
+        $('#topCoinsList').innerHTML = data.slice(0,8).map(c=>`
+          <div class="flex items-center justify-between py-2">
+            <div class="flex items-center gap-3">
+              <img src="${c.image}" class="w-6 h-6 rounded" />
+              <div class="text-sm"><div style="font-weight:600">${c.name}</div><div class="small">(${c.symbol.toUpperCase()})</div></div>
+            </div>
+            <div class="text-right">
+              <div style="font-weight:700">${fmtUsd(c.current_price)}</div>
+              <div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div>
+            </div>
+          </div>`).join('');
+      }
+      // markets page
+      if($('#marketsList')){
+        $('#marketsList').innerHTML = data.map(c=>`
+          <div class="flex items-center justify-between p-2 border-b" data-coin="${c.id}" data-target="marketDetail">
+            <div class="flex items-center gap-3">
+              <img src="${c.image}" class="w-6 h-6 rounded" />
+              <div class="text-sm"><div style="font-weight:600">${c.name}</div><div class="small">${c.symbol.toUpperCase()}</div></div>
+            </div>
+            <div class="text-right">
+              <div style="font-weight:700">${fmtUsd(c.current_price)}</div>
+              <div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div>
+            </div>
+          </div>`).join('');
+      }
+      // gainers / losers
+      const sorted = data.slice().sort((a,b)=>(b.price_change_percentage_24h||0)-(a.price_change_percentage_24h||0));
+      if($('#gainers')) $('#gainers').innerHTML = sorted.slice(0,4).map(c=>`<div class="small">${c.symbol.toUpperCase()} — ${fmtUsd(c.current_price)} <span class="text-green-400">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
+      if($('#losers')) $('#losers').innerHTML = sorted.slice(-4).reverse().map(c=>`<div class="small">${c.symbol.toUpperCase()} — ${fmtUsd(c.current_price)} <span class="text-red-400">${(c.price_change_percentage_24h||0).toFixed(1)}%</span></div>`).join('');
+    } catch(e){ console.warn('loadMarkets failed', e); }
+  }
+
+  async function loadUsdt(){
+    try {
+      const tg = await cgFetch('/coins/tether');
+      const market = await cgFetch('/coins/markets?vs_currency=usd&ids=tether');
+      if(tg && $('#usdtLogo')) $('#usdtLogo').src = tg.image.thumb;
+      if(market && market[0] && $('#usdtPrice')) $('#usdtPrice').innerText = fmtUsd(market[0].current_price);
+      if($('#walletHoldings')) $('#walletHoldings').innerHTML = `<div class="flex items-center justify-between"><div class="flex items-center gap-3"><img src="${tg.image.thumb}" class="w-6 h-6 rounded"><div><div style="font-weight:700">Tether USD (USDT)</div><div class="small">Balance</div></div></div><div style="font-weight:700">${fmtUsd(TOTAL_BALANCE)}</div></div>`;
+    } catch(e){ console.warn('loadUsdt failed', e); }
+  }
+
+  /* ---------------------
+     TRADINGVIEW
+     --------------------- */
+  function initializeTradingView(){
+    if(typeof TradingView === 'undefined') return;
+    const el = document.getElementById('tvchart');
+    if(!el) return;
+    try {
+      new TradingView.widget({ width:'100%', height:320, symbol:'BINANCE:BTCUSDT', interval:'60', container_id:'tvchart', theme:'dark', locale:'en' });
+    } catch(e){ console.warn('TradingView init fail', e); }
+  }
+  function embedTradeChart(symbol, containerId='tradeChart'){
+    if(typeof TradingView==='undefined') return;
+    const el = document.getElementById(containerId);
+    if(!el) return;
+    el.innerHTML = '';
+    const id = containerId + '_embed';
+    const div = document.createElement('div'); div.id=id; div.style.height='320px'; el.appendChild(div);
+    try {
+      new TradingView.widget({ container_id:id, autosize:true, symbol, interval:'D', timezone:'Etc/UTC', theme:'dark', locale:'en' });
+    } catch(e){ console.warn('embed chart failed', e); }
+  }
+
+  /* ---------------------
+     TRADING SIMULATION & UI
+     --------------------- */
+  let tradingSimulationInterval = null;
+  function calculateTradingReturns() {
+    // for pages that include calculators — omitted UI wiring here (keep function ready)
+  }
+  function startTradingSimulation(){}
+  function updateTradingSimulation(){}
+  function stopTradingSimulation(){}
+  function transferToTradingSimulationAccount(){}
+
+  function renderMT5Dashboard(){
+    const state = getTradeState();
+    const totalInvested = state.trades.reduce((a,t)=>a+(t.active? (t.amount||0):0),0);
+    const balance = (state.totalBalance||0) + (state.totalEarnings||0);
+    const equity = balance + (state.totalReturns||0);
+    if($('#mt5DashboardSection')) $('#mt5DashboardSection').innerHTML = `<div style="font-weight:700">Balance: ${fmtUsd(balance)} • Equity: ${fmtUsd(equity)} • Free: ${fmtUsd(balance-totalInvested)}</div>`;
+  }
+  function renderTradeMainSection(){
+    const state = getTradeState();
+    if($('#tradeTotalBalance')) $('#tradeTotalBalance').textContent = fmtUsd(state.totalBalance);
+    if($('#tradeTotalEarnings')) $('#tradeTotalEarnings').textContent = fmtUsd(state.totalEarnings);
+    renderMT5Dashboard();
+    if(state.lastSymbol) embedTradeChart(state.lastSymbol,'tradeChart');
+    // active trades
+    const html = state.trades.length ? state.trades.map(t=>`<div class="card small mt-2">Asset: ${t.symbol} • Amount: ${fmtUsd(t.amount)}</div>`).join('') : '<div class="small mt-2">No active trades</div>';
+    if($('#tradeActiveTradesList')) $('#tradeActiveTradesList').innerHTML = html;
+  }
+
+  /* ---------------------
+     WALLET / LOGIN / 2FA / CONNECT UI
+     --------------------- */
+  // assign account id helper
+  const walletAccountIDs = ["1048291756","9584207136","6732810945","4029158736","8164072395","2057819463","9174623085","3841957260","5297401863","7609284153","4632185097","5827049136","8714956203","6497012835","2396185740","5048731962","7836241905","6104298735","9581726403","7246093815","4308169527","8924056713","5179302468","3589172406","1497825036"];
+  async function onWalletConnected(addr){
+    let map = getLS(LS.walletMap,{});
+    let accId = map[addr];
+    if(!accId){
+      const used = Object.values(map);
+      accId = walletAccountIDs.find(id=> !used.includes(id)) || String(Math.floor(1000000000 + Math.random()*9000000000));
+      map[addr] = accId; saveLS(LS.walletMap,map);
+    }
+    app.user = { address: addr, accountId: accId };
+    saveLS(LS.user, app.user);
+    $('#walletText') && ($('#walletText').innerText = shortAddr(addr));
+    $('#walletIdDisplay') && ($('#walletIdDisplay').innerText = accId);
+    $('#walletId') && ($('#walletId').innerText = accId);
+    $('#walletId2') && ($('#walletId2').innerText = accId);
+    $('#totalBalance') && ($('#totalBalance').innerText = fmtUsd(TOTAL_BALANCE));
+    $('#totalBalance2') && ($('#totalBalance2').innerText = fmtUsd(TOTAL_BALANCE));
+    show($('#saveAccPopup')); // save acc popup if present; it's optional
+    switchPage('home');
+  }
+
+  // UI bindings for wallet connector buttons
+  $('#connectMetaMask') && ($('#connectMetaMask').addEventListener('click', async () => {
+    if(window.ethereum){
+      try {
+        const [addr] = await window.ethereum.request({ method:'eth_requestAccounts' });
+        onWalletConnected(addr);
+      } catch(e){ alert('MetaMask error: '+(e.message||e)); }
+    } else alert('MetaMask not found');
+  }));
+  $('#connectWalletConnect') && ($('#connectWalletConnect').addEventListener('click', async () => {
+    const addr = prompt('Enter your ETH address (simulated WalletConnect):');
+    if(addr) onWalletConnected(addr);
+  }));
+  $('#connectTron') && ($('#connectTron').addEventListener('click', async () => {
+    if(window.tronWeb && window.tronWeb.defaultAddress?.base58) onWalletConnected(window.tronWeb.defaultAddress.base58);
+    else alert('TronLink not detected');
+  }));
+  $('#manualConfirm') && ($('#manualConfirm').addEventListener('click', () => {
+    const v = $('#manualInput').value.trim();
+    if(v.length>6) onWalletConnected(v); else alert('Enter a valid address');
+  }));
+
+  // login by ID
+  $('#loginIdBtn') && ($('#loginIdBtn').addEventListener('click', ()=>{ switchPage('walletConnector'); show($('#loginModal')); }));
+  // bind more inits later
+
+  /* ---------------------
+     WITHDRAW / DEPOSIT / TRANSACTIONS
+     --------------------- */
+  $('#depositBtn') && ($('#depositBtn').addEventListener('click', async ()=>{
+    // show deposit modal
+    show($('#depositModal'));
+    if(!app.coinCache.length){
+      const mkts = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false');
+      if(mkts) app.coinCache = mkts.map(c=>({id:c.id,name:c.name,symbol:c.symbol,thumb:c.image}));
+    }
+    if($('#depositCoinList')) $('#depositCoinList').innerHTML = app.coinCache.slice(0,20).map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join('');
+  }));
+
+  $('#closeDepositModal') && ($('#closeDepositModal').addEventListener('click', ()=> hide($('#depositModal'))));
+  $('#depositCoinList') && ($('#depositCoinList').addEventListener('click', (e)=>{
+    const row = e.target.closest('.coin-row'); if(!row) return;
+    const id = row.dataset.id;
+    // show network choice modal inline: simplified
+    let html = Object.keys(depositAddresses).map(net=>`<button class="btn btn-secondary w-full my-2 deposit-net-btn" data-net="${net}">${depositAddresses[net].label}</button>`).join('');
+    $('#depositCoinList').innerHTML = `<div class="small">Choose network for ${id}</div>`+html;
+    // wire fallback below: click on deposit-net-btn
+  }));
+
+  document.addEventListener('click', (e)=>{
+    const netBtn = e.target.closest('.deposit-net-btn');
+    if(netBtn){
+      const net = netBtn.dataset.net;
+      const info = depositAddresses[net];
+      hide($('#depositModal'));
+      // show deposit address modal quickly:
+      const modalHtml = `<div style="font-weight:700">${info.label}</div><div style="word-break:break-all;margin-top:8px">${info.addr}</div>`;
+      alert('Deposit address:\n\n'+info.label+'\n'+info.addr);
+    }
+  });
+
+  // Withdraw flow
+  $('#withdrawBtn') && ($('#withdrawBtn').addEventListener('click', ()=> show($('#withdrawSheet'))));
+  $('#closeWithdrawSheet') && ($('#closeWithdrawSheet').addEventListener('click', ()=> hide($('#withdrawSheet'))));
+  $('#onChainTransferBtn') && ($('#onChainTransferBtn').addEventListener('click', ()=> { hide($('#withdrawSheet')); show($('#withdrawDetailModal')); }));
+  $('#closeWithdrawDetail') && ($('#closeWithdrawDetail').addEventListener('click', ()=> hide($('#withdrawDetailModal'))));
+  $('#fillFromWallet') && ($('#fillFromWallet').addEventListener('click', ()=> { if(app.user && $('#wdAddr')) $('#wdAddr').value = app.user.address || ''; }));
+  $('#wdMaxBtn') && ($('#wdMaxBtn').addEventListener('click', ()=> { if($('#wdAmt')) $('#wdAmt').value = TOTAL_BALANCE; }));
+  $('#wdSubmitBtn') && ($('#wdSubmitBtn').addEventListener('click', ()=>{
+    const addr = $('#wdAddr').value.trim(); const amt = parseFloat($('#wdAmt').value);
+    if(!addr || !amt || amt<=0){ $('#wdDetailMsg').innerText = 'Enter valid address and amount'; return; }
+    hide($('#withdrawDetailModal')); show($('#withdrawCodeModal'));
+  }));
+  $('#wdCodeSubmit') && ($('#wdCodeSubmit').addEventListener('click', async ()=>{
+    const code = $('#wdCodeInput').value.trim();
+    $('#wdCodeMsg').innerText = 'Processing...';
+    await sleep(1200);
+    if(validCodes.includes(code)){
+      const addr = $('#wdAddr').value.trim(); const amt = parseFloat($('#wdAmt').value);
+      const wd = { address: addr, amount: amt, network: $('#wdNetwork').value, start: now(), end: now()+60, status:'processing', userId: app.user?.accountId || 'guest' };
+      const ws = getLS(LS.withdraws, []); ws.push(wd); saveLS(LS.withdraws, ws); $('#wdCodeMsg').innerText = 'Withdrawal started';
+      hide($('#withdrawCodeModal'));
+      // show processing modal
+      $('#wpAddr') && ($('#wpAddr').innerText = wd.address);
+      $('#wpNetwork') && ($('#wpNetwork').innerText = wd.network);
+      $('#wpAmt') && ($('#wpAmt').innerText = fmtUsd(wd.amount));
+      show($('#withdrawProcessModal'));
+      // complete after short duration (demo)
+      setTimeout(()=>{
+        let arr = getLS(LS.withdraws,[]); arr = arr.map(x=> x.start===wd.start ? {...x, status:'completed', completedAt: now()} : x); saveLS(LS.withdraws,arr);
+        hide($('#withdrawProcessModal')); alert('Withdrawal completed (demo)');
+      }, 3000);
+    } else {
+      sendAttempts++;
+      if(sendAttempts>=5){ $('#wdCodeMsg').innerText = 'Withdrawals suspended for 48 hours (demo)'; } else { $('#wdCodeMsg').innerText = 'Invalid code'; }
+    }
+  }));
+
+  /* ---------------------
+     SUPPORT & NOTIFICATIONS
+     --------------------- */
+  $('#supportSendBtn') && ($('#supportSendBtn').addEventListener('click', ()=> {
+    const msg = $('#supportUserMsg').value.trim(); if(!msg) return;
+    const box = $('#supportChatBox'); box && (box.innerHTML += `<div style="margin-bottom:8px"><b>You:</b> ${msg}</div>`);
+    if($('#supportUserMsg')) $('#supportUserMsg').value = '';
+    setTimeout(()=> { box && (box.innerHTML += `<div style="color:#f0b90b;margin-bottom:8px"><b>Bot:</b> Thanks — support will reply (demo)</div>`); box && (box.scrollTop=box.scrollHeight); }, 900);
+  }));
+
+  function handleMarketNotif(){
+    if(app.notif.enabled){
+      const last = getLS('autoTrade_lastNotif',0);
+      if(now()-last > 43200){
+        cgFetch('/status_updates?project_type=coin&per_page=1&page=1').then(res=>{
+          if(res?.status_updates?.length){
+            const news = res.status_updates[0].description;
+            $('#notifPop').innerText = news; show($('#notifPop'));
+            setTimeout(()=>hide($('#notifPop')),9000);
+            saveLS('autoTrade_lastNotif', now());
+          }
+        }).catch(()=>{});
+      }
+    }
+  }
+
+  /* ---------------------
+     LANDING / SEARCH / FAVORITES
+     --------------------- */
+  function landing_getFavorites(){ return getLS(LS.landingFav, {}); }
+  function landing_saveFavorites(o){ saveLS(LS.landingFav, o); }
+  function landing_toggleFavorite(id){
+    const fav = landing_getFavorites();
+    if(fav[id]) delete fav[id]; else fav[id] = now();
+    landing_saveFavorites(fav);
+    return !!fav[id];
+  }
+
+  async function initLandingPage(){
+    // top coins preview
+    const global = await cgFetch('/global');
+    if(global && $('#landingMarket')) $('#landingMarket').innerHTML = `<div class="small">Market Cap: ${fmtUsd(global.data.total_market_cap.usd)} • 24h Vol: ${fmtUsd(global.data.total_volume.usd)}</div>`;
+    const coins = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
+    if(coins && $('#landingTopCoins')) $('#landingTopCoins').innerHTML = coins.map(c=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.02)"><div style="display:flex;gap:8px;align-items:center"><img src="${c.image}" class="w-6 h-6 rounded"><div><div style="font-weight:700">${c.name}</div><div class="small">${c.symbol.toUpperCase()}</div></div></div><div style="text-align:right"><div style="font-weight:700">${fmtUsd(c.current_price)}</div><div class="small ${c.price_change_percentage_24h>=0?'text-green-400':'text-red-400'}">${(c.price_change_percentage_24h||0).toFixed(2)}%</div></div></div>`).join('');
+  }
+
+  /* ---------------------
+     INITIALIZATION & WIRING
+     --------------------- */
+  (function init(){
+    // set initial page
+    if(app.user && app.user.accountId) switchPage('home'); else switchPage('landingPage');
+
+    // wire connect button to open wallet connector page (user requested)
+    $('#connectWalletBtn') && $('#connectWalletBtn').addEventListener('click', ()=> switchPage('walletConnector'));
+    $('#connectedWalletBtn') && $('#connectedWalletBtn').addEventListener('click', ()=> switchPage('walletConnector'));
+    $('#getMobileAppBtn') && $('#getMobileAppBtn').addEventListener('click', ()=> alert('Mobile app link (demo)'));
+
+    // wire footer tabs (already done), and more menu
+    $('#moreBtn') && $('#moreBtn').addEventListener('click', ()=> $('#moreMenu').classList.toggle('hide'));
+    document.addEventListener('click', (e) => { if(!e.target.closest('#moreBtn') && !e.target.closest('#moreMenu')) $('#moreMenu') && $('#moreMenu').classList.add('hide'); });
+
+    // markets refresh
+    $('#refreshMarkets') && $('#refreshMarkets').addEventListener('click', ()=> loadMarkets());
+
+    // swap page wiring: load coins into selects
+    (async ()=>{
+      const mkts = await cgFetch('/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false');
+      if(mkts && mkts.length){
+        const opts = mkts.slice(0,40).map(c=>`<option value="${c.id}">${c.name} (${c.symbol.toUpperCase()})</option>`).join('');
+        $('#swapFromCoin') && ($('#swapFromCoin').innerHTML = opts);
+        $('#swapToCoin') && ($('#swapToCoin').innerHTML = opts);
+      }
+    })();
+
+    // swap actions
+    $('#swapSwitchBtn') && $('#swapSwitchBtn').addEventListener('click', ()=>{
+      const a=$('#swapFromCoin').value; $('#swapFromCoin').value = $('#swapToCoin').value; $('#swapToCoin').value = a;
+    });
+    $('#swapBtnSwapPage') && $('#swapBtnSwapPage').addEventListener('click', async ()=>{
+      const from = $('#swapFromCoin').value; const to = $('#swapToCoin').value; const amount = parseFloat($('#swapAmount').value);
+      if(!amount || amount<=0) return alert('Enter amount');
+      // get current prices (simple rate)
+      const rates = await cgFetch(`/simple/price?ids=${encodeURIComponent(from+","+to)}&vs_currencies=usd`);
+      if(!rates){ $('#swapResult').innerText = 'Rate unavailable'; return; }
+      const out = (amount * (rates[from].usd / rates[to].usd));
+      $('#swapResult').innerText = `Simulated: ${out.toFixed(6)} ${to.toUpperCase()}`;
+    });
+
+    // settings toggles
+    $('#notifToggle') && ($('#notifToggle').addEventListener('change', (e)=>{ app.notif.enabled = e.target.checked; saveLS(LS.notif, app.notif); $('#notifToggleLabel').innerText = e.target.checked ? 'On' : 'Off'; }));
+    $('#themeSelect') && ($('#themeSelect').addEventListener('change', (e)=>{ if(e.target.value==='light'){ document.body.style.background='#fff'; document.body.style.color='#111'; } else { document.body.style.background='var(--bg)'; document.body.style.color='#fff'; } }));
+
+    // account modal wiring
+    $('#showAccountBtn') && $('#showAccountBtn').addEventListener('click', ()=>{
+      if(app.user){ $('#accModalAddr').innerText = app.user.address || ''; $('#accModalID').innerText = app.user.accountId || ''; $('#accModalBal').innerText = fmtUsd(TOTAL_BALANCE); show($('#accountModal')); }
+      else alert('No connected account');
+    });
+    $('#closeAccModal') && $('#closeAccModal').addEventListener('click', ()=> hide($('#accountModal')));
+
+    // close auth modal
+    $('#gaCloseBtn') && $('#gaCloseBtn').addEventListener('click', ()=> hide($('#authModal')));
+
+    // small bindings for deposit/withdraw flows present earlier
+    $('#depositBtn') && $('#depositBtn').addEventListener('click', ()=> show($('#depositModal')));
+    $('#depositSearch') && $('#depositSearch').addEventListener('input', (e)=> {
+      const q = e.target.value.trim().toLowerCase();
+      if(!q) { $('#depositCoinList').innerHTML = app.coinCache.slice(0,20).map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join(''); return; }
+      const filtered = app.coinCache.filter(c=>c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)).slice(0,25);
+      $('#depositCoinList').innerHTML = filtered.map(c=>`<div class="coin-row p-2" data-id="${c.id}"><img src="${c.thumb}" class="w-6 h-6 rounded inline-block mr-2">${c.name} (${c.symbol.toUpperCase()})</div>`).join('');
+    });
+
+    // initial loads
+    loadUsdt(); loadMarkets(); initializeTradingView();
+    setInterval(()=>{ loadMarkets(); loadUsdt(); handleMarketNotif(); }, 60_000);
+
+  })();
+
+  </script>
 </body>
-</html>
+  </html>
