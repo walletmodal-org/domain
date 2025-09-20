@@ -617,51 +617,471 @@ setInterval(() => {
 // ========== SWAP (DEMO) ==========
 $('#swapBtn').onclick = ()=>alert("Swap flow (demo)");
 
-// ========== TRADE PAGE ==========
-$('#placeOrderBtn').onclick = function() {
-  show($('#tradeModal'));
-};
-$('#closeTradeModal').onclick = function() { hide($('#tradeModal')); };
-$('#placeTradeBtn').onclick = function() {
-  // Choose asset
-  $('#tradeAssetList').innerHTML = app.marketTop.slice(0,10).map(c=>`
-    <div class="flex items-center gap-2 p-2 cursor-pointer trade-asset-row" data-symbol="${c.symbol.toUpperCase()}"><img src="${c.image}" class="w-5 h-5"/>${c.name}</div>
-  `).join('');
-  show($('#tradeAssetModal'));
-};
-$('#closeTradeAssetModal').onclick = function() { hide($('#tradeAssetModal')); };
-// Asset select
-$('#tradeAssetList').onclick = function(e) {
-  let row = e.target.closest('.trade-asset-row');
-  if (!row) return;
-  let asset = row.dataset.symbol;
-  $('#tradeOrderAsset').innerText = "Asset: "+asset;
-  $('#tradeDurSelect').value = "";
-  show($('#tradeDurModal'));
-};
-$('#tradeDurConfirm').onclick = function() {
-  let dur = $('#tradeDurSelect').value;
-  if (!dur) return;
-  $('#tradeOrderDur').innerText = "Duration: "+dur+" months";
-  show($('#tradePlaceOrderModal'));
-};
-$('#tradeOrderBtn').onclick = async function() {
-  // Simulate trade activation
-  await sleep(15000);
-  let pos = {asset: $('#tradeOrderAsset').innerText.replace("Asset: ",""), start: now(), end: now()+parseInt($('#tradeDurSelect').value)*2592000, dailyRate: 0.1395, amount: 1000, returns: 0};
-  app.tradePositions.push(pos); saveLS(LS.tradePositions, app.tradePositions);
-  hide($('#tradePlaceOrderModal'));
-  alert("Trade activated!");
-};
-$('#tradeTransferBtn').onclick = function() { show($('#tradeTransferModal')); };
-$('#closeTransferModal').onclick = function() { hide($('#tradeTransferModal')); };
-$('#transferBtn').onclick = async function() {
-  await sleep(15000);
-  alert("Transfer processed!");
-  hide($('#tradeTransferModal'));
-};
-$('#viewEarningsBtn').onclick = function() { show($('#tradeEarningsModal')); };
-$('#closeTradeEarningsModal').onclick = function() { hide($('#tradeEarningsModal')); };
+
+// ========== TRADE: MT5 Dashboard + Simulation ==========
+const TRADE_RETURNS_RATE = 0.1195; // 11.95% daily
+const TRADE_DURATIONS = [1,2,3,4,5,6,7,8,9,10,11,12];
+const TRADE_STATE_KEY = "autoTrade_tradeState";
+const MAIN_PORTFOLIO_KEY = "autoTrade_mainPortfolio";
+
+function getTradeState() {
+  return getLS(TRADE_STATE_KEY, {
+    trades: [],
+    totalBalance: 5000,
+    totalEarnings: 0,
+    totalReturns: 0,
+    lastSymbol: "BINANCE:BTCUSDT"
+  });
+}
+function setTradeState(state) { saveLS(TRADE_STATE_KEY, state); }
+function getMainPortfolio() { return getLS(MAIN_PORTFOLIO_KEY, { totalPortfolio: 8250.78 }); }
+function setMainPortfolio(state) { saveLS(MAIN_PORTFOLIO_KEY, state); }
+
+// TradingView initialization (defensive)
+function initializeTradingView() {
+  if (typeof TradingView === 'undefined') return;
+  const container = document.getElementById('tvchart');
+  if (!container) return;
+  try {
+    new TradingView.widget({
+      width: '100%',
+      height: 400,
+      symbol: "BINANCE:BTCUSDT",
+      interval: "1D",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      toolbar_bg: "#1a1d29",
+      enable_publishing: false,
+      allow_symbol_change: true,
+      container_id: "tvchart",
+      hide_side_toolbar: false,
+    });
+  } catch (error) {
+    console.error('TradingView initialization failed:', error);
+    container.innerHTML = '<div class="flex items-center justify-center h-full text-muted-foreground">Chart loading...</div>';
+  }
+}
+function embedTradeChart(symbol, containerId = "tradeChart") {
+  if (typeof TradingView === 'undefined') return;
+  let el = document.getElementById(containerId); if (!el) return;
+  el.innerHTML = '';
+  let tvWidget = document.createElement('div');
+  tvWidget.id = `tvChartEmbed_${containerId}`;
+  tvWidget.style = "height:340px;";
+  el.appendChild(tvWidget);
+  new TradingView.widget({
+    container_id: tvWidget.id,
+    autosize: true,
+    symbol: symbol,
+    interval: "D",
+    timezone: "Etc/UTC",
+    theme: "dark",
+    style: "1",
+    locale: "en",
+    toolbar_bg: "#0b0f14",
+    enable_publishing: false,
+    allow_symbol_change: true,
+    studies: [],
+    details: true,
+    withdateranges: true,
+    hide_side_toolbar: false
+  });
+}
+
+let tradingSimulationData = null;
+let tradingSimulationInterval = null;
+let usdtAmount = getTradeState().totalBalance || 0;
+
+function calculateTradingReturns() {
+  const amountEl = document.getElementById('investmentAmount');
+  const durEl = document.getElementById('tradingDuration');
+  if (!amountEl || !durEl) return alert('UI missing inputs for calculation');
+  const amount = parseFloat(amountEl.value);
+  const duration = parseInt(durEl.value);
+  if (!amount || amount <= 0) { alert('Please enter a valid investment amount'); return; }
+  if (!duration || duration <= 0) { alert('Please select a valid duration'); return; }
+  if (amount > usdtAmount) { alert('Investment amount cannot exceed available balance'); return; }
+  const dailyRate = TRADE_RETURNS_RATE;
+  const totalDays = duration * 30;
+  const finalAmount = amount * Math.pow(1 + dailyRate, totalDays);
+  const totalProfit = finalAmount - amount;
+  const roi = (totalProfit / amount) * 100;
+  tradingSimulationData = { initialAmount: amount, duration, totalDays, finalAmount, totalProfit, roi, dailyRate };
+  if ($('#initialInvestment')) $('#initialInvestment').textContent = `$${amount.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  if ($('#investmentDuration')) $('#investmentDuration').textContent = `${duration} month${duration>1?'s':''}`;
+  if ($('#totalDays')) $('#totalDays').textContent = `${totalDays} days`;
+  if ($('#finalAmount')) $('#finalAmount').textContent = `$${finalAmount.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  if ($('#totalProfit')) $('#totalProfit').textContent = `$${totalProfit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  if ($('#roi')) $('#roi').textContent = `${roi.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}%`;
+  if ($('#tradingResults')) $('#tradingResults').classList.remove('hidden');
+}
+
+function startTradingSimulation() {
+  if (!tradingSimulationData) { alert('Please calculate returns first'); return; }
+  transferToTradingSimulationAccount();
+  const startTime = Date.now();
+  const endTime = startTime + (tradingSimulationData.totalDays * 24 * 60 * 60 * 1000);
+  saveLS(LS.tradingSimulation, { ...tradingSimulationData, startTime, endTime, isActive: true });
+  if ($('#tradingResults')) $('#tradingResults').classList.add('hidden');
+  if ($('#activeTradingDisplay')) $('#activeTradingDisplay').classList.remove('hidden');
+  updateTradingSimulation();
+  tradingSimulationInterval = setInterval(updateTradingSimulation, 60000);
+  showTradingToast('Trading simulation started successfully!');
+}
+
+function updateTradingSimulation() {
+  const simulation = getLS(LS.tradingSimulation, {});
+  if (!simulation.isActive) return;
+  const nowMs = Date.now();
+  const totalDuration = simulation.endTime - simulation.startTime;
+  const elapsed = nowMs - simulation.startTime;
+  const progress = Math.min(elapsed / totalDuration, 1);
+  const currentValue = simulation.initialAmount * Math.pow(1 + simulation.dailyRate, simulation.totalDays * progress);
+  const currentProfit = currentValue - simulation.initialAmount;
+  const remainingDays = Math.max(0, Math.ceil((simulation.endTime - nowMs) / (24 * 60 * 60 * 1000)));
+  if ($('#currentTradingValue')) $('#currentTradingValue').textContent = `$${currentValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  if ($('#currentProfit')) $('#currentProfit').textContent = `$${currentProfit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  if ($('#daysRemaining')) $('#daysRemaining').textContent = `${remainingDays} days`;
+  if (progress >= 1) completeTradingSimulation();
+}
+
+function completeTradingSimulation() {
+  const simulation = getLS(LS.tradingSimulation, {});
+  usdtAmount += (simulation.finalAmount || 0);
+  updateBalanceDisplay();
+  delLS(LS.tradingSimulation);
+  clearInterval(tradingSimulationInterval);
+  if ($('#activeTradingDisplay')) $('#activeTradingDisplay').classList.add('hidden');
+  showTradingToast(`Simulation complete! Final amount: $${(simulation.finalAmount||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+}
+
+function stopTradingSimulation() {
+  const simulation = getLS(LS.tradingSimulation, {});
+  if (simulation.isActive) {
+    const nowMs = Date.now();
+    const totalDuration = simulation.endTime - simulation.startTime;
+    const elapsed = nowMs - simulation.startTime;
+    const progress = Math.min(elapsed / totalDuration, 1);
+    const currentValue = simulation.initialAmount * Math.pow(1 + simulation.dailyRate, simulation.totalDays * progress);
+    usdtAmount += currentValue;
+    updateBalanceDisplay();
+    showTradingToast(`Simulation stopped. Returned: $${currentValue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+  }
+  delLS(LS.tradingSimulation);
+  clearInterval(tradingSimulationInterval);
+  if ($('#activeTradingDisplay')) $('#activeTradingDisplay').classList.add('hidden');
+}
+
+function transferToTradingSimulationAccount() {
+  if (!tradingSimulationData) { alert('Please calculate returns first'); return; }
+  if (tradingSimulationData.initialAmount > usdtAmount) { alert('Insufficient balance'); return; }
+  usdtAmount -= tradingSimulationData.initialAmount;
+  updateBalanceDisplay();
+  showTradingToast(`$${tradingSimulationData.initialAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} transferred to trading account`);
+}
+
+function showTradingToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'fixed top-4 right-4 bg-accent text-accent-foreground px-4 py-2 rounded-lg shadow-lg z-[2000] transition-all duration-300';
+  toast.textContent = message;
+  toast.style.transform = 'translateX(400px)';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.transform = 'translateX(0)'; }, 10);
+  setTimeout(() => { toast.style.transform = 'translateX(400px)'; setTimeout(() => { if (toast.parentNode) { toast.parentNode.removeChild(toast); } }, 300); }, 3000);
+}
+
+// MT5 Dashboard
+function renderMT5Dashboard() {
+  let state = getTradeState();
+  let totalInvested = state.trades.reduce((a, t) => t.active ? a + (t.amount||0) : a, 0);
+  let balance = (state.totalBalance || 0) + (state.totalEarnings || 0);
+  let equity = balance + (state.totalReturns || 0);
+  let freeMargin = balance - totalInvested;
+  if ($('#mt5DashboardSection')) {
+    $('#mt5DashboardSection').innerHTML = `
+      <div class="mt5-dashboard bg-gray-900 p-4 rounded-lg mb-4">
+        <div class="flex justify-between mb-2">
+          <div class="font-bold">Balance</div>
+          <div class="font-mono">${fmtUsd(balance)}</div>
+        </div>
+        <div class="flex justify-between mb-2">
+          <div class="font-bold">Equity</div>
+          <div class="font-mono">${fmtUsd(equity)}</div>
+        </div>
+        <div class="flex justify-between mb-2">
+          <div class="font-bold">Free Margin</div>
+          <div class="font-mono">${fmtUsd(freeMargin)}</div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// Balance UI update
+function updateBalanceDisplay() {
+  let state = getTradeState();
+  if ($('#tradeTotalBalance')) $('#tradeTotalBalance').textContent = fmtUsd(state.totalBalance);
+  if ($('#tradeTotalEarnings')) $('#tradeTotalEarnings').textContent = fmtUsd(state.totalEarnings);
+  if ($('#tradeTotalReturns')) $('#tradeTotalReturns').textContent = fmtUsd(state.totalReturns);
+  renderMT5Dashboard();
+  const mainPortfolio = getMainPortfolio();
+  if (document.getElementById('mainPortfolioBalance')) document.getElementById('mainPortfolioBalance').textContent = fmtUsd(mainPortfolio.totalPortfolio);
+}
+
+// Trade main rendering
+function renderTradeMainSection() {
+  let state = getTradeState();
+  usdtAmount = state.totalBalance;
+  updateBalanceDisplay();
+  renderActiveTrades();
+  if (state.lastSymbol) embedTradeChart(state.lastSymbol);
+  document.getElementById('tradeMainSection') && (document.getElementById('tradeMainSection').style.display = '');
+  document.getElementById('tradeDynamicSection') && (document.getElementById('tradeDynamicSection').style.display = 'none');
+  renderMT5Dashboard();
+}
+
+function renderActiveTrades() {
+  let state = getTradeState();
+  let nowTs = now();
+  let html = state.trades.length ?
+    state.trades.map((t,i) => {
+      let left = Math.max(0, t.end-nowTs);
+      return `<div class="bg-gray-800 rounded p-2 mb-2">
+        <div>Asset: ${t.symbol}</div>
+        <div>Duration: ${t.duration} month(s) (${formatCountdown(left)})</div>
+        <div>Status: ${left>0?"Active":"Completed"}</div>
+        <div>Returns: ${fmtUsd(t.returns)}</div>
+        <div>Earnings: ${fmtUsd(t.earnings)}</div>
+      </div>`;
+    }).join('')
+    : '<div class="text-gray-400">No active trades</div>';
+  if ($('#tradeActiveTradesList')) $('#tradeActiveTradesList').innerHTML = html;
+}
+
+// Trade UI wiring
+function setupTradeButtons() {
+  if ($('#loadSymbol')) $('#loadSymbol').onclick = function() {
+    let symbol = document.getElementById('tradeSymbol').value;
+    let state = getTradeState();
+    state.lastSymbol = symbol;
+    setTradeState(state);
+    embedTradeChart(symbol);
+  };
+  if ($('#placeTradeBtn')) $('#placeTradeBtn').onclick = function() {
+    let state = getTradeState();
+    if (state.totalBalance < 100) return alert("You need at least $100 in your trade balance to place a trade.");
+    renderPlaceTradeAssetPage();
+  };
+  if ($('#viewEarningsBtn')) $('#viewEarningsBtn').onclick = function() { renderEarningsPage(); };
+  if ($('#convertBtn')) $('#convertBtn').onclick = function() { 
+    // convert flow updated below; if HTML provides convert inputs, use the other handler which overrides.
+    alert("Convert flow demo");
+  };
+  if ($('#placeOrderBtn')) $('#placeOrderBtn').onclick = function() {
+    let state = getTradeState();
+    if (state.totalBalance < 100) return alert("You need at least $100 in your trade balance to place a trade.");
+    renderPlaceTradeAssetPage();
+  };
+  // Footer Buttons
+  if ($('#tvTradeBtn')) $('#tvTradeBtn').onclick = function() { renderTradeMainSection(); };
+  if ($('#tvEarningsBtn')) $('#tvEarningsBtn').onclick = function() { renderEarningsPage(); };
+  if ($('#tvPortfolioBtn')) $('#tvPortfolioBtn').onclick = function() { switchPage('home'); };
+  if ($('#tvDepositBtn')) $('#tvDepositBtn').onclick = function() { switchPage('depositPage'); };
+  if ($('#tvTransferBtn')) $('#tvTransferBtn').onclick = function() { renderTransferPage(); };
+  // Header Buttons
+  if ($('#tvNotifBtn')) $('#tvNotifBtn').onclick = function() { switchPage('notifPage'); };
+  if ($('#tvSettingsBtn')) $('#tvSettingsBtn').onclick = function() { switchPage('settingsPage'); };
+  if ($('#tvBackBtn')) $('#tvBackBtn').onclick = function() { goBackPage(); };
+}
+
+// Place trade selection
+function renderPlaceTradeAssetPage() {
+  const dyn = document.getElementById('tradeDynamicSection');
+  if (!dyn) return;
+  document.getElementById('tradeMainSection') && (document.getElementById('tradeMainSection').style.display = 'none');
+  dyn.style.display = '';
+  dyn.innerHTML = `
+    <div class="tv-select-asset mt-4">
+      <label>Select Asset to Trade:</label>
+      <select id="tradeAssetSelect" class="bg-gray-800 px-2 py-2 rounded text-sm">
+        <option value="BINANCE:BTCUSDT">BTC/USDT</option>
+        <option value="BINANCE:ETHUSDT">ETH/USDT</option>
+        <option value="BINANCE:BNBUSDT">BNB/USDT</option>
+      </select>
+      <button id="tradeAssetLoadBtn" class="px-3 py-2 bg-gray-800 rounded text-sm ml-2">Load Asset Chart</button>
+    </div>
+    <div id="tradeAssetChart" style="height:340px;" class="mt-4"></div>
+    <div id="tradeDurationSection"></div>
+  `;
+  const btn = document.getElementById('tradeAssetLoadBtn');
+  if (btn) btn.onclick = function() {
+    let symbol = document.getElementById('tradeAssetSelect').value;
+    embedTradeChart(symbol, "tradeAssetChart");
+    setTimeout(() => renderTradeDurationSelect(symbol), 1500);
+  };
+}
+
+function renderTradeDurationSelect(symbol) {
+  const container = document.getElementById('tradeDurationSection');
+  if (!container) return;
+  container.innerHTML = `
+    <div class="tv-trade-duration mt-4">
+      <label>Select Trade Duration:</label>
+      <select id="tradingDuration" class="bg-gray-800 px-2 py-2 rounded text-sm">
+        ${TRADE_DURATIONS.map(d=>`<option value="${d}">${d} month${d>1?'s':''}</option>`).join('')}
+      </select>
+      <button id="tradeDurationBtn" class="px-3 py-2 bg-gray-800 rounded text-sm ml-2">Confirm Duration</button>
+    </div>
+  `;
+  const btn = document.getElementById('tradeDurationBtn');
+  if (btn) btn.onclick = function() {
+    let duration = parseInt(document.getElementById('tradingDuration').value);
+    setTimeout(() => renderTradeOrderPage(symbol, duration), 500);
+  };
+}
+
+function renderTradeOrderPage(symbol, duration) {
+  const dyn = document.getElementById('tradeDynamicSection');
+  if (!dyn) return;
+  dyn.innerHTML = `
+    <div class="tv-trade-order mt-4">
+      <div>Asset: <b>${symbol}</b></div>
+      <div>Duration: <b>${duration} month${duration>1?'s':''}</b></div>
+      <button id="tradeOrderBtn" class="px-4 py-2 bg-green-500 text-white font-bold rounded">Place Order</button>
+    </div>
+  `;
+  const btn = document.getElementById('tradeOrderBtn');
+  if (btn) btn.onclick = function() {
+    activateTrade(symbol, duration);
+    alert("Trade activated!");
+    renderTradeMainSection();
+  };
+}
+
+// Activate trade (uses all available trade balance unless overwritten)
+function activateTrade(symbol, duration) {
+  let state = getTradeState();
+  let tradeStart = now();
+  let tradeEnd = tradeStart + duration*2592000;
+  let amount = state.totalBalance || 0;
+  if (amount <= 0) { alert("No trade balance available"); return; }
+  let returns = 0, earnings = 0;
+  let trade = { symbol, duration, start: tradeStart, end: tradeEnd, amount, returns, earnings, active: true };
+  state.trades.push(trade);
+  state.totalBalance = 0; // all invested
+  setTradeState(state);
+  startTradeReturnsGenerator();
+}
+
+// Earnings page
+function renderEarningsPage() {
+  let state = getTradeState();
+  const dyn = document.getElementById('tradeDynamicSection');
+  if (!dyn) return;
+  document.getElementById('tradeMainSection') && (document.getElementById('tradeMainSection').style.display = 'none');
+  dyn.style.display = '';
+  dyn.innerHTML = `
+    <div class="tv-earnings">
+      <div class="font-bold text-lg mb-2">Total Earnings: <span id="earningsTotalVal">${fmtUsd(state.totalEarnings)}</span></div>
+      <div id="tvEarningsChart" style="height:350px;"></div>
+      <button id="tvTransferBtnEarnings" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded mt-3">Transfer</button>
+      <button id="earningsBackBtn" class="px-4 py-2 bg-gray-800 text-white font-bold rounded mt-3">Back</button>
+    </div>
+  `;
+  embedTradeChart(state.lastSymbol, "tvEarningsChart");
+  const tvTransfer = document.getElementById('tvTransferBtnEarnings');
+  const back = document.getElementById('earningsBackBtn');
+  if (tvTransfer) tvTransfer.onclick = () => renderTransferPage();
+  if (back) back.onclick = () => renderTradeMainSection();
+}
+
+// Transfer page
+function renderTransferPage() {
+  const dyn = document.getElementById('tradeDynamicSection');
+  if (!dyn) return;
+  document.getElementById('tradeMainSection') && (document.getElementById('tradeMainSection').style.display = 'none');
+  dyn.style.display = '';
+  dyn.innerHTML = `
+    <div class="tv-transfer p-4">
+      <label>Enter amount:</label>
+      <input id="transferAmountInput" class="input-black-text border border-gray-800 px-3 py-2 rounded text-sm mb-2" type="number" />
+      <div class="mt-2 mb-2">
+        <button id="switchTransferBtn" class="px-3 py-2 bg-gray-800 rounded">Switch</button>
+        <span id="transferToLabel" class="ml-2">Transfer to Main Wallet</span>
+      </div>
+      <button id="transferConfirmBtn" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded mt-2">Transfer</button>
+      <button id="transferBackBtn" class="px-4 py-2 bg-gray-800 text-white font-bold rounded mt-3">Back</button>
+      <div id="transferMsg" class="mt-3"></div>
+    </div>
+  `;
+  let transferTo = "main";
+  const switchBtn = document.getElementById('switchTransferBtn');
+  if (switchBtn) switchBtn.onclick = function() {
+    transferTo = transferTo === "main" ? "trade" : "main";
+    const lbl = document.getElementById('transferToLabel');
+    if (lbl) lbl.innerText = transferTo === "main" ? "Transfer to Main Wallet" : "Transfer to Trade Account";
+  };
+  const confirm = document.getElementById('transferConfirmBtn');
+  if (confirm) confirm.onclick = async function() {
+    const amt = parseFloat(document.getElementById('transferAmountInput').value);
+    const msgEl = document.getElementById('transferMsg');
+    if (isNaN(amt) || amt <= 0) { if (msgEl) msgEl.innerText = "Enter valid amount."; return; }
+    if (msgEl) msgEl.innerText = "Processing...";
+    await sleep(1500);
+    let state = getTradeState();
+    let main = getMainPortfolio();
+    if (transferTo === "main") {
+      if (amt > state.totalBalance) { if (msgEl) msgEl.innerText = "Insufficient trade balance"; return; }
+      state.totalBalance -= amt;
+      main.totalPortfolio = (main.totalPortfolio||0) + amt;
+      setMainPortfolio(main);
+      if (msgEl) msgEl.innerText = "Transferred to Main Wallet!";
+    } else {
+      if (amt > main.totalPortfolio) { if (msgEl) msgEl.innerText = "Insufficient main wallet balance"; return; }
+      state.totalBalance = (state.totalBalance||0) + amt;
+      main.totalPortfolio -= amt;
+      setMainPortfolio(main);
+      if (msgEl) msgEl.innerText = "Transferred to Trade Account!";
+    }
+    setTradeState(state);
+    renderTradeMainSection();
+  };
+  const back = document.getElementById('transferBackBtn');
+  if (back) back.onclick = () => renderTradeMainSection();
+}
+
+// Returns generator
+function startTradeReturnsGenerator() {
+  let state = getTradeState();
+  let nowTs = now();
+  state.trades.forEach(trade => {
+    if (trade.active && nowTs < trade.end) {
+      let daysPassed = Math.floor((nowTs - trade.start)/86400);
+      let returns = trade.amount * Math.pow(1 + TRADE_RETURNS_RATE, daysPassed) - trade.amount;
+      trade.returns = returns;
+      trade.earnings = trade.amount + returns;
+      if (nowTs >= trade.end) trade.active = false;
+    }
+  });
+  state.totalReturns = state.trades.reduce((a,t)=>a+(t.returns||0),0);
+  state.totalEarnings = state.trades.reduce((a,t)=>a+(t.earnings||0),0);
+  setTradeState(state);
+  updateBalanceDisplay();
+}
+setInterval(startTradeReturnsGenerator, 60000);
+
+// initialize trading simulation if active
+function initializeTradingSimulation() {
+  const simulation = getLS(LS.tradingSimulation, {});
+  if (simulation.isActive) {
+    const activeDisplay = document.getElementById('activeTradingDisplay');
+    if (activeDisplay) activeDisplay.classList.remove('hidden');
+    updateTradingSimulation();
+    tradingSimulationInterval = setInterval(updateTradingSimulation, 60000);
+  }
+  }
 
 // ========== SETTINGS ==========
 $('#settingsBtn').onclick = function() { switchPage('settingsPage'); };
